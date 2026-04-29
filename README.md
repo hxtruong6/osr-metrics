@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/osr-metrics.svg)](https://pypi.org/project/osr-metrics/)
 [![Python versions](https://img.shields.io/pypi/pyversions/osr-metrics.svg)](https://pypi.org/project/osr-metrics/)
 [![Downloads](https://img.shields.io/pypi/dm/osr-metrics.svg)](https://pypi.org/project/osr-metrics/)
-[![License: MIT](https://img.shields.io/pypi/l/osr-metrics.svg)](https://github.com/hxtruong6/osr-metrics/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/hxtruong6/osr-metrics/blob/main/LICENSE)
 [![CI](https://github.com/hxtruong6/osr-metrics/actions/workflows/ci.yml/badge.svg)](https://github.com/hxtruong6/osr-metrics/actions/workflows/ci.yml)
 
 **Plain-numpy metrics for Open-Set Recognition and OOD-detection research — no PyTorch, no datasets, just the math.**
