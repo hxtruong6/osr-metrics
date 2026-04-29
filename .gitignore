@@ -13,3 +13,6 @@ venv/
 
 # Local-only planning artifacts (not for publication)
 docs/superpowers/
+
+CLAUDE.md
+.claude/
