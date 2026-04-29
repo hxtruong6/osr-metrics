@@ -209,9 +209,17 @@ class TestRcCurveWithTies:
 
 
 def _brute_force_aurc_no_ties(score, loss):
-    cov, risk, _ = _brute_force_rc_curve_no_ties(score, loss)
-    _trapz = getattr(np, "trapezoid", None) or np.trapz
-    return float(_trapz(risk, cov))
+    """O(N log N) brute-force reference for the no-ties case.
+
+    AURC = (1/N) * sum_{k=1..N} mean(loss[lowest k by score])
+         = mean(cumsum(sorted_loss) / arange(1, N+1))
+    """
+    score = np.asarray(score, dtype=float)
+    loss = np.asarray(loss, dtype=float)
+    n = len(score)
+    order = np.argsort(score, kind="stable")
+    cum_means = np.cumsum(loss[order]) / np.arange(1, n + 1)
+    return float(np.mean(cum_means))
 
 
 class TestRcCurvePublic:
@@ -249,10 +257,10 @@ class TestAurc:
         assert aurc(loss, loss) <= aurc(random_score, loss) + 1e-9
 
     def test_worst_ranker_maximises(self):
-        rng = np.random.RandomState(7)
+        rng = np.random.RandomState(4)
         loss = rng.binomial(1, 0.4, size=200).astype(float)
         random_score = rng.standard_normal(200)
-        assert aurc(-loss, loss) >= aurc(random_score, loss) - 0.05
+        assert aurc(-loss, loss) >= aurc(random_score, loss) - 1e-9
 
     def test_random_ranker_near_mean_loss(self):
         rng = np.random.RandomState(5)
@@ -279,7 +287,7 @@ class TestAurc:
     def test_all_wrong_aurc_one(self):
         score = np.array([0.1, 0.2, 0.3])
         loss = np.ones(3)
-        assert aurc(score, loss) == pytest.approx(2.0 / 3.0, abs=1e-12)
+        assert aurc(score, loss) == pytest.approx(1.0, abs=1e-12)
 
     def test_validation_propagates(self):
         with pytest.raises(ValueError, match="non-negative"):

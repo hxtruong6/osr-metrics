@@ -168,10 +168,23 @@ def aurc(ood_score: np.ndarray, loss: np.ndarray) -> float:
     |------------|-------------------------------|
     | Any        | Selective prediction          |
 
-    Computed as the trapezoidal integral over the discrete RC curve. The
-    curve depends only on the rank ordering induced by ``ood_score``
-    (rank-averaged on ties), so AURC is sign-equivalent to the
-    confidence-convention definition in Geifman & El-Yaniv 2017.
+    Computed as the Riemann sum
+        AURC = (1/N) * sum_{k=1..N} cum_mean[k]
+    where ``cum_mean[k]`` is the mean loss over the ``k`` lowest-score
+    samples. This matches the canonical definition used by Geifman &
+    El-Yaniv 2017 and the standard reference implementations (Galil 2023,
+    Han 2024, TorchUncertainty).
+
+    Tie handling: tied scores have their within-run losses replaced by
+    the run mean before computing ``cum_mean``. This makes ``aurc``
+    input-order-invariant (and identical to stable-sort semantics when
+    no ties are present), at the cost of a small deviation from
+    reference implementations on heavily-tied inputs.
+
+    Note: ``aurc`` is *not* equal to ``np.trapezoid`` over the discrete
+    ``rc_curve`` output. The two quantities differ by O(1/N) and
+    measure related-but-distinct things — ``aurc`` is the canonical
+    summary scalar, ``rc_curve`` is the visualization/deployment view.
 
     Args:
         ood_score: Higher = more likely to reject. Shape ``[N]``.
@@ -180,6 +193,22 @@ def aurc(ood_score: np.ndarray, loss: np.ndarray) -> float:
     Returns:
         AURC in ``[0, max(loss)]``. Lower is better.
     """
-    coverage, risk, _ = _rc_curve_with_ties(ood_score, loss)
-    _trapz = getattr(np, "trapezoid", None) or np.trapz  # type: ignore[attr-defined]
-    return float(_trapz(risk, coverage))
+    score, loss_arr = _validate_score_loss(ood_score, loss)
+    n = score.size
+
+    ranks = rankdata(score, method="average")
+    order = np.argsort(ranks, kind="stable")
+    sorted_loss = loss_arr[order]
+    sorted_ranks = ranks[order]
+
+    # Replace within-run losses with run mean → input-order-invariant.
+    run_change = np.concatenate(([True], sorted_ranks[1:] != sorted_ranks[:-1]))
+    run_id = np.cumsum(run_change) - 1
+    run_counts = np.bincount(run_id)
+    run_sums = np.bincount(run_id, weights=sorted_loss)
+    run_means = run_sums / run_counts
+    averaged_loss = run_means[run_id]
+
+    cum_sum = np.cumsum(averaged_loss)
+    cum_mean = cum_sum / np.arange(1, n + 1)
+    return float(np.mean(cum_mean))
