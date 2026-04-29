@@ -28,7 +28,7 @@ from .calibration import brier_score, expected_calibration_error
 from .delong import delong_test
 from .stability import *  # noqa: F401, F403
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     # OOD detection

@@ -167,6 +167,7 @@ class TestComputeFourclassMetrics:
             "fpr95_pure",
             "auroc_mixed",
             "fpr95_mixed",
+            "auroc_mixed_vs_id_disease",
             "auroc_nf_vs_pure",
             "auroc_disease_only",
             "fpr95_disease_only",
@@ -316,3 +317,40 @@ class TestComputeFourclassMetrics:
         assert result["auroc_full"] == pytest.approx(1.0, abs=1e-5)
         # NF vs Pure: no NF => NaN
         assert np.isnan(result["auroc_nf_vs_pure"])
+
+
+def test_auroc_mixed_vs_id_disease_present_and_correct():
+    """New near-OOD pairing: ID-disease only (no NF) vs Mixed OOD.
+
+    Constructs a dataset where the OOD score perfectly separates Mixed OOD
+    (high score) from ID-disease (low score), and checks that the metric
+    equals 1.0 regardless of the NF / Pure-OOD scores (which must be excluded).
+    """
+    import numpy as np
+    from osr_metrics.fourclass import compute_fourclass_metrics
+
+    label_vecs = _make_dataset()
+    # Indices: 0,1=id_disease  2,3=NF  4,5=pure_OOD  6,7=mixed_OOD
+    # Make NF and pure_OOD scores noise that would hurt other pairings if leaked in.
+    ood_scores = np.array([0.1, 0.2, 5.0, -5.0, 0.5, 0.6, 0.9, 0.95])
+    out = compute_fourclass_metrics(ood_scores, label_vecs, LABEL_NAMES, HELD_OUT)
+    assert "auroc_mixed_vs_id_disease" in out
+    assert out["auroc_mixed_vs_id_disease"] == 1.0
+
+
+def test_auroc_mixed_vs_id_disease_excludes_nf_and_pure():
+    """The new metric must depend only on ID-disease and Mixed scores."""
+    import numpy as np
+    from osr_metrics.fourclass import compute_fourclass_metrics
+
+    label_vecs = _make_dataset()
+    base = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.9, 0.95])
+    out_a = compute_fourclass_metrics(base, label_vecs, LABEL_NAMES, HELD_OUT)
+    # Perturb ONLY NF and pure_OOD scores; mixed-vs-id metric must be unchanged.
+    perturbed = base.copy()
+    perturbed[2] = 99.0  # NF
+    perturbed[3] = -99.0  # NF
+    perturbed[4] = 99.0  # pure_OOD
+    perturbed[5] = -99.0  # pure_OOD
+    out_b = compute_fourclass_metrics(perturbed, label_vecs, LABEL_NAMES, HELD_OUT)
+    assert out_a["auroc_mixed_vs_id_disease"] == out_b["auroc_mixed_vs_id_disease"]

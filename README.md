@@ -84,7 +84,8 @@ label_names = ["A", "B", "C", "D"]
 held_out = ["C", "D"]
 metrics = compute_fourclass_metrics(scores, label_vecs, label_names, held_out)
 # Returns: auroc_full, fpr95_full, auroc_pure, auroc_mixed,
-#          auroc_nf_vs_pure, auroc_disease_only, counts...
+#          auroc_mixed_vs_id_disease, auroc_nf_vs_pure,
+#          auroc_disease_only, counts...
 ```
 
 Partitions images into four mutually exclusive classes:
@@ -92,6 +93,16 @@ Partitions images into four mutually exclusive classes:
 - `no_finding` — all-zero label vector
 - `pure_ood` — only held-out labels
 - `mixed_ood` — both known + held-out labels
+
+Five AUROC pairings answer different questions:
+
+| Key | Negatives | Positives | What it asks |
+|---|---|---|---|
+| `auroc_pure` | ID-disease + NF | Pure OOD | Upper-bound separability |
+| `auroc_mixed` | ID-disease + NF | Mixed OOD | Mixed-OOD detection difficulty |
+| `auroc_mixed_vs_id_disease` | ID-disease only | Mixed OOD | Near-OOD sensitivity (NF removed) |
+| `auroc_nf_vs_pure` | NF only | Pure OOD | Diagnostic floor: healthy-vs-anything |
+| `auroc_full` | ID-disease + NF | Pure + Mixed OOD | Full population measurement |
 
 ## Why another metrics library?
 

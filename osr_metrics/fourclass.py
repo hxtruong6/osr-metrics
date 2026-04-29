@@ -101,6 +101,10 @@ def compute_fourclass_metrics(
         - **auroc_full** / **fpr95_full**: (ID + NF) vs (Pure + Mixed) OOD
         - **auroc_pure** / **fpr95_pure**: (ID + NF) vs Pure OOD only
         - **auroc_mixed** / **fpr95_mixed**: (ID + NF) vs Mixed OOD only
+        - **auroc_mixed_vs_id_disease**: ID-disease only (no NF) vs Mixed OOD.
+          Near-OOD sensitivity diagnostic: can the score detect held-out
+          content even when known disease is also present and NF is removed
+          from the negatives?
         - **auroc_nf_vs_pure**: No Finding vs Pure OOD (critical clinical pair)
         - **auroc_disease_only** / **fpr95_disease_only**: ID-disease vs all
           OOD (backward-compatible with v15 which excludes NF)
@@ -131,6 +135,11 @@ def compute_fourclass_metrics(
     labels_mixed = mixed_mask[sel_mixed].astype(int)
     scores_mixed = ood_scores[sel_mixed]
 
+    # --- Near-OOD: ID-disease only (no NF) vs Mixed OOD ---
+    sel_mixed_vs_idd = id_mask | mixed_mask
+    labels_mixed_vs_idd = mixed_mask[sel_mixed_vs_idd].astype(int)
+    scores_mixed_vs_idd = ood_scores[sel_mixed_vs_idd]
+
     # --- NF vs Pure OOD (critical clinical pair) ---
     sel_nf_pure = nf_mask | pure_mask
     labels_nf_pure = pure_mask[sel_nf_pure].astype(int)
@@ -148,6 +157,7 @@ def compute_fourclass_metrics(
         "fpr95_pure": _safe_fpr95(scores_pure, labels_pure),
         "auroc_mixed": _safe_auroc(scores_mixed, labels_mixed),
         "fpr95_mixed": _safe_fpr95(scores_mixed, labels_mixed),
+        "auroc_mixed_vs_id_disease": _safe_auroc(scores_mixed_vs_idd, labels_mixed_vs_idd),
         "auroc_nf_vs_pure": _safe_auroc(scores_nf_pure, labels_nf_pure),
         "auroc_disease_only": _safe_auroc(scores_disease, labels_disease),
         "fpr95_disease_only": _safe_fpr95(scores_disease, labels_disease),
