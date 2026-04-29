@@ -336,3 +336,34 @@ def selective_accuracy_at_coverage(
 
     loss = (y_true_arr != y_pred_ids).astype(float)
     return 1.0 - selective_risk_at_coverage(ood_score_arr, loss, coverage)
+
+
+def warn_if_inverted_aurc(
+    ood_score: np.ndarray,
+    loss: np.ndarray,
+) -> None:
+    """Emit a ``UserWarning`` if AURC(score) > AURC(-score).
+
+    | Applies to | Task                          |
+    |------------|-------------------------------|
+    | Any        | Selective prediction          |
+
+    Strong signal that the caller passed a confidence (higher = keep)
+    instead of an OOD score (higher = reject). Cheap (two AURC calls).
+    No-op when the two AURCs are within ``1e-9`` (degenerate / all-tied
+    inputs).
+
+    Args:
+        ood_score: Score under test. Shape ``[N]``.
+        loss: Per-sample non-negative loss. Shape ``[N]``.
+    """
+    a = aurc(ood_score, loss)
+    b = aurc(-np.asarray(ood_score, dtype=float), loss)
+    if a > b + 1e-9:
+        warnings.warn(
+            f"AURC({a:.4f}) > AURC of negated score ({b:.4f}). Did you "
+            "pass a confidence (higher = keep) instead of an OOD score "
+            "(higher = reject)? See osr_metrics.utils.as_ood_scores.",
+            category=UserWarning,
+            stacklevel=2,
+        )

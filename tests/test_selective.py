@@ -1,6 +1,8 @@
 """Tests for osr_metrics.selective."""
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 from scipy.stats import rankdata
@@ -14,6 +16,7 @@ from osr_metrics.selective import (
     rc_curve,
     selective_accuracy_at_coverage,
     selective_risk_at_coverage,
+    warn_if_inverted_aurc,
 )
 
 
@@ -465,3 +468,53 @@ class TestSelectiveAccuracyAtCoverage:
                 np.array([0, 0, 0]),
                 1.0,
             )
+
+
+class TestWarnIfInvertedAurc:
+    def test_triggers_on_confidence_passed_as_score(self):
+        # Confidence-as-score: high "score" on correct samples (loss=0).
+        # Library expects high score on errors → AURC will be high; AURC
+        # of negated score will be low.
+        rng = np.random.RandomState(14)
+        n = 500
+        loss = rng.binomial(1, 0.3, size=n).astype(float)
+        # Pretend the user passed confidence: high on correct (loss=0).
+        score = -loss + 0.01 * rng.standard_normal(n)
+        with pytest.warns(UserWarning, match="OOD score"):
+            warn_if_inverted_aurc(score, loss)
+
+    def test_silent_on_correct_score_direction(self):
+        rng = np.random.RandomState(15)
+        n = 500
+        loss = rng.binomial(1, 0.3, size=n).astype(float)
+        # OOD-score convention: high on errors.
+        score = loss + 0.01 * rng.standard_normal(n)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # any warning becomes an exception
+            warn_if_inverted_aurc(score, loss)
+
+    def test_silent_on_random_uncorrelated_score(self):
+        rng = np.random.RandomState(16)
+        n = 500
+        loss = rng.binomial(1, 0.3, size=n).astype(float)
+        score = rng.standard_normal(n)
+        # AURC and AURC(-s) are within noise → the asymmetric > b + 1e-9
+        # check should not fire most of the time. If it does fire, the
+        # message must reference the OOD score.
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            warn_if_inverted_aurc(score, loss)
+        for record in w:
+            assert "OOD score" in str(record.message)
+
+    def test_silent_on_all_tied(self):
+        score = np.array([0.5, 0.5, 0.5, 0.5])
+        loss = np.array([0.0, 1.0, 0.0, 1.0])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            warn_if_inverted_aurc(score, loss)
+
+    def test_returns_none(self):
+        score = np.array([0.1, 0.2, 0.3])
+        loss = np.array([0.0, 1.0, 0.0])
+        assert warn_if_inverted_aurc(score, loss) is None
