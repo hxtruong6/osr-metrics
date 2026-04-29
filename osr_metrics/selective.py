@@ -125,3 +125,61 @@ def _rc_curve_with_ties(
     threshold = sorted_score[end_idx]
 
     return coverage.astype(float), risk, threshold.astype(float)
+
+
+def rc_curve(
+    ood_score: np.ndarray,
+    loss: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Risk–coverage curve for an OOD/uncertainty score.
+
+    | Applies to | Task                          |
+    |------------|-------------------------------|
+    | Any        | Selective prediction          |
+
+    Args:
+        ood_score: Score where higher = more likely to reject (library
+            convention). Shape ``[N]``.
+        loss: Per-sample non-negative loss (e.g.
+            ``(y_true != y_pred).astype(float)`` for 0/1
+            misclassification, NLL, squared error, …). Shape ``[N]``.
+
+    Returns:
+        Tuple ``(coverage, selective_risk, threshold)``:
+
+        - ``coverage``: strictly increasing in ``(0, 1]``, shape ``[M]``.
+        - ``selective_risk``: mean loss over the selected
+          (lowest-score) subset at each coverage, shape ``[M]``.
+        - ``threshold``: score threshold ``τ`` such that
+          ``{x : ood_score(x) ≤ τ}`` has the given coverage. Useful for
+          deployment.
+
+        ``M ≤ N``; tied scores are collapsed via rank-averaging so the
+        curve is invariant to input order and to monotone transforms of
+        the score (including sign flip).
+    """
+    return _rc_curve_with_ties(ood_score, loss)
+
+
+def aurc(ood_score: np.ndarray, loss: np.ndarray) -> float:
+    """Area under the risk–coverage curve. Lower is better.
+
+    | Applies to | Task                          |
+    |------------|-------------------------------|
+    | Any        | Selective prediction          |
+
+    Computed as the trapezoidal integral over the discrete RC curve. The
+    curve depends only on the rank ordering induced by ``ood_score``
+    (rank-averaged on ties), so AURC is sign-equivalent to the
+    confidence-convention definition in Geifman & El-Yaniv 2017.
+
+    Args:
+        ood_score: Higher = more likely to reject. Shape ``[N]``.
+        loss: Per-sample non-negative loss. Shape ``[N]``.
+
+    Returns:
+        AURC in ``[0, max(loss)]``. Lower is better.
+    """
+    coverage, risk, _ = _rc_curve_with_ties(ood_score, loss)
+    _trapz = getattr(np, "trapezoid", None) or np.trapz  # type: ignore[attr-defined]
+    return float(_trapz(risk, coverage))

@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from scipy.stats import rankdata
 
 from osr_metrics.selective import (
     _rc_curve_with_ties,
     _validate_coverage,
     _validate_score_loss,
+    aurc,
+    rc_curve,
 )
 
 
@@ -203,3 +206,81 @@ class TestRcCurveWithTies:
         cov_b, risk_b, _ = _rc_curve_with_ties(score[perm], loss[perm])
         np.testing.assert_allclose(cov_a, cov_b, atol=1e-12)
         np.testing.assert_allclose(risk_a, risk_b, atol=1e-12)
+
+
+def _brute_force_aurc_no_ties(score, loss):
+    cov, risk, _ = _brute_force_rc_curve_no_ties(score, loss)
+    _trapz = getattr(np, "trapezoid", None) or np.trapz
+    return float(_trapz(risk, cov))
+
+
+class TestRcCurvePublic:
+    def test_matches_workhorse(self):
+        score = np.array([0.3, 0.1, 0.4, 0.2])
+        loss = np.array([1.0, 0.0, 0.0, 1.0])
+        a = rc_curve(score, loss)
+        b = _rc_curve_with_ties(score, loss)
+        for x, y in zip(a, b):
+            np.testing.assert_array_equal(x, y)
+
+    def test_returns_tuple_of_three(self):
+        out = rc_curve(np.array([0.1, 0.2]), np.array([0.0, 1.0]))
+        assert isinstance(out, tuple)
+        assert len(out) == 3
+        for arr in out:
+            assert isinstance(arr, np.ndarray)
+
+
+class TestAurc:
+    def test_matches_brute_force_no_ties(self):
+        for n in (10, 100, 1000):
+            for seed in range(5):
+                rng2 = np.random.RandomState(seed)
+                score = rng2.standard_normal(n)
+                loss = rng2.binomial(1, 0.3, size=n).astype(float)
+                got = aurc(score, loss)
+                want = _brute_force_aurc_no_ties(score, loss)
+                assert got == pytest.approx(want, abs=1e-12)
+
+    def test_perfect_ranker_minimises(self):
+        rng = np.random.RandomState(3)
+        loss = rng.binomial(1, 0.4, size=200).astype(float)
+        random_score = rng.standard_normal(200)
+        assert aurc(loss, loss) <= aurc(random_score, loss) + 1e-9
+
+    def test_worst_ranker_maximises(self):
+        rng = np.random.RandomState(7)
+        loss = rng.binomial(1, 0.4, size=200).astype(float)
+        random_score = rng.standard_normal(200)
+        assert aurc(-loss, loss) >= aurc(random_score, loss) - 0.05
+
+    def test_random_ranker_near_mean_loss(self):
+        rng = np.random.RandomState(5)
+        loss = rng.binomial(1, 0.3, size=10000).astype(float)
+        diffs = []
+        for seed in range(20):
+            rng2 = np.random.RandomState(100 + seed)
+            score = rng2.standard_normal(10000)
+            diffs.append(abs(aurc(score, loss) - loss.mean()))
+        assert np.mean(diffs) < 0.02
+
+    def test_rank_only_dependence(self):
+        rng = np.random.RandomState(6)
+        score = rng.standard_normal(50)
+        loss = rng.binomial(1, 0.5, size=50).astype(float)
+        ranks = rankdata(score, method="average") / 50
+        assert aurc(score, loss) == pytest.approx(aurc(ranks, loss), abs=1e-12)
+
+    def test_all_correct_aurc_zero(self):
+        score = np.array([0.1, 0.2, 0.3])
+        loss = np.zeros(3)
+        assert aurc(score, loss) == 0.0
+
+    def test_all_wrong_aurc_one(self):
+        score = np.array([0.1, 0.2, 0.3])
+        loss = np.ones(3)
+        assert aurc(score, loss) == pytest.approx(2.0 / 3.0, abs=1e-12)
+
+    def test_validation_propagates(self):
+        with pytest.raises(ValueError, match="non-negative"):
+            aurc(np.array([0.1, 0.2]), np.array([0.0, -0.1]))
