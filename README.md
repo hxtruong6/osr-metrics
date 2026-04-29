@@ -32,6 +32,7 @@ produced.
 | Four-class OSR partitioning | `build_fourclass_masks`, `compute_fourclass_metrics`, `partition_ood_by_purity` |
 | Calibration | `expected_calibration_error`, `expected_calibration_error_multiclass`, `brier_score`, `brier_score_multiclass` |
 | Statistical comparison | `delong_test` (O(n log n) rank-based), `bootstrap_ci` (with optional stratification) |
+| Selective prediction | `rc_curve`, `aurc`, `eaurc`, `selective_risk_at_coverage`, `selective_accuracy_at_coverage`, `warn_if_inverted_aurc` |
 | Utilities | `as_ood_scores` (score-direction adapter), `warn_if_inverted_scores`, `compute_panel` (one-call publication panel) |
 
 All functions take plain `numpy` arrays and return scalars or simple
@@ -69,6 +70,9 @@ Read across to find your setting; functions marked ✅ apply directly.
 | `brier_score_multiclass` | ✅ | ❌ | — | — | ✅ | — |
 | `delong_test` | ✅ | ✅ | ✅ | ✅ | — | ✅ |
 | `bootstrap_ci` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `rc_curve` / `aurc` / `eaurc` | ✅ | ✅ | — | — | — | — |
+| `selective_risk_at_coverage` / `selective_accuracy_at_coverage` | ✅ | ✅ | — | — | — | — |
+| `warn_if_inverted_aurc` | ✅ | ✅ | — | — | — | — |
 | `as_ood_scores` / `warn_if_inverted_scores` | ✅ | ✅ | ✅ | ✅ | — | — |
 | `compute_panel` | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 

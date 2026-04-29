@@ -6,6 +6,14 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- New module `osr_metrics.selective` with selective-prediction / risk–coverage metrics: `rc_curve`, `aurc`, `eaurc`, `selective_risk_at_coverage`, `selective_accuracy_at_coverage`, `warn_if_inverted_aurc`. Follows the library's "higher = more OOD" convention; rank-averaged tie handling for sign-symmetric, input-order-independent results. AURC uses the canonical Riemann-sum formulation matching Geifman & El-Yaniv 2017 and standard reference implementations (Galil 2023, Han 2024).
+
+### Changed
+
+- `compute_panel` accepts an optional `loss=` keyword argument. When supplied alongside `scores=`, the panel additionally computes `aurc`, `eaurc`, and `selective_risk@95`. Existing call sites are unaffected.
+
 ## [0.2.0] — 2026-04-30
 
 Multi-class first-class support, one-call publication panel, and an

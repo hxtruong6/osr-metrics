@@ -146,6 +146,27 @@ Pick the row that matches your task type:
 | One method, want a CI on its AUROC | `bootstrap_ci(scores, labels, auroc, n_bootstrap=1000)` | Use `stratify=True` if classes are very imbalanced. |
 | Multiple seeds, want the mean ± std | `np.std([auroc per seed], ddof=1)` | One line, no library function needed. |
 
+### G. Do you have a per-sample loss and want to evaluate score quality as a ranker?
+
+→ **AURC / E-AURC** (`osr_metrics.aurc`, `osr_metrics.eaurc`).
+
+The selective-prediction family answers: "if I abstain on the most-OOD-looking samples, how does my average loss decrease?" It needs:
+
+- `ood_score` (higher = reject, library convention)
+- `loss` (per-sample non-negative loss; e.g. `(y_true != y_pred).astype(float)`)
+
+Use `rc_curve` for the full curve, `aurc` for the scalar summary,
+`eaurc` for the gap to the optimal ranker, and
+`selective_accuracy_at_coverage` for "accuracy when keeping the most-confident X% of predictions". **AURC measures rank quality on the supplied loss, not OOD detection** — for OOD detection use `auroc`.
+
+| Question | Function |
+|---|---|
+| Full risk–coverage curve | `rc_curve(ood_score, loss)` |
+| Scalar summary — area under the RC curve (lower = better) | `aurc(ood_score, loss)` |
+| Gap to the oracle ranker | `eaurc(ood_score, loss)` |
+| Risk when keeping the most-confident X% | `selective_risk_at_coverage(ood_score, loss, coverage)` |
+| Accuracy when keeping the most-confident X% | `selective_accuracy_at_coverage(ood_score, loss, coverage)` |
+
 ### F. I want a healthy-patient false-alarm number
 
 ```python
