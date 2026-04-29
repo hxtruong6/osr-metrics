@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: "osr-metrics: Open-Set Recognition and OOD-detection metrics for ML research"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - family-names: "Hoang"
+    given-names: "Truong"
+    email: "hxtruong6ac@gmail.com"
+repository-code: "https://github.com/hxtruong6/osr-metrics"
+license: MIT
+version: "0.1.1"
+date-released: "2026-04-29"
+keywords:
+  - "open-set-recognition"
+  - "out-of-distribution-detection"
+  - "machine-learning"
+  - "metrics"
+  - "auroc"
+  - "aoscr"
+  - "delong"
+  - "calibration"
+abstract: >-
+  A small, framework-agnostic Python library that bundles the metrics
+  required for credible Open-Set Recognition (OSR) and OOD-detection
+  publications. Includes AUROC, FPR@95TPR, AUPR-In/Out, canonical AOSCR
+  (Dhamija et al. 2018), four-class OSR partitioning, calibration metrics
+  (ECE, Brier), and statistical comparison tools (DeLong test, bootstrap
+  confidence intervals with optional class-stratification). All functions
+  take plain numpy arrays with consistent score-direction conventions
+  (higher = more OOD).

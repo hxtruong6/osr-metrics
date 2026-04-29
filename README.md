@@ -111,6 +111,15 @@ methods, datasets, and a heavy framework. `osr-metrics` is just the metrics —
 useful when you want to compute AOSCR or DeLong on cached scores from any
 pipeline, regardless of how those scores were produced.
 
+## Documentation
+
+- [`docs/USAGE.md`](docs/USAGE.md) — "which metric should I use?" decision tree.
+- [`docs/EXAMPLES.md`](docs/EXAMPLES.md) — end-to-end runnable examples
+  including the full publication metric panel, DeLong comparison, and
+  seed aggregation.
+- [`CHANGELOG.md`](CHANGELOG.md) — version history.
+- [`CITATION.cff`](CITATION.cff) — citation metadata.
+
 ## Testing
 
 ```bash
