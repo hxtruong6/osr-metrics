@@ -1,4 +1,10 @@
-"""Four-class OOD partitioning and metrics (v17).
+"""Four-class OOD partitioning and metrics.
+
+**Scope: multi-label only.** The four-way partition relies on multi-hot
+label vectors (No-Finding = all-zero vector, Mixed-OOD = known and
+held-out labels co-occur). For multi-class (single-label) OSR, use
+``ood.auroc`` / ``osr.compute_aoscr`` directly — every sample falls into
+exactly one class so the four-class partition collapses to plain ID/OOD.
 
 In a realistic deployment, a chest X-ray OOD detection system must handle
 four distinct image types:
@@ -28,6 +34,10 @@ def build_fourclass_masks(
     held_out_labels: list[str],
 ) -> dict[str, np.ndarray]:
     """Partition images into four mutually exclusive types.
+
+    | Applies to   | Task                          |
+    |--------------|-------------------------------|
+    | Multi-label  | OSR sub-population partition  |
 
     Args:
         label_vecs: Binary multi-hot label matrix, shape ``[N, K]``.
@@ -88,6 +98,10 @@ def compute_fourclass_metrics(
     held_out_labels: list[str],
 ) -> dict:
     """Compute OOD detection metrics across clinically meaningful pairings.
+
+    | Applies to   | Task                          |
+    |--------------|-------------------------------|
+    | Multi-label  | OSR (near-/far-OOD breakdown) |
 
     Args:
         ood_scores: Per-image OOD scores, shape ``[N]``.  Higher = more OOD.

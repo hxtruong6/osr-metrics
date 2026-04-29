@@ -1,4 +1,14 @@
-"""Open-Set Recognition (OSR) metrics for V17 stretch targets.
+"""Open-Set Recognition (OSR) metrics: joint classify + reject.
+
+**Scope:**
+
+- ``compute_aoscr`` / ``oscr_curve`` (in ``ood.py``): multi-class
+  (single-label) **and** multi-label. For multi-label, callers reduce
+  predictions to an exact-match indicator (see ``compute_aoscr``
+  docstring). The canonical setting is multi-class single-label
+  (Dhamija 2018, Vaze 2022).
+- ``compute_nf_rejection_at_tpr``: multi-label only — depends on a
+  per-sample "No Finding" (all-zero label vector) indicator.
 
 Two metrics are implemented here:
 
@@ -15,9 +25,6 @@ Two metrics are implemented here:
    rejected when the OOD threshold is calibrated to keep TPR=0.95 on real
    ID-disease samples?  This quantifies the rate at which a healthy patient
    is sent to a human reviewer because the model is uncertain.
-
-These are *additive* metrics: they reuse the existing ``ood_scores`` /
-``label_vecs`` saved in ``scores.json``; no re-inference is required.
 """
 from __future__ import annotations
 
@@ -32,6 +39,15 @@ def compute_aoscr(
     n_thresholds: int = 1000,
 ) -> float:
     """Area under the Open-Set Classification Rate (OSCR) curve.
+
+    | Applies to                                        | Task                  |
+    |---------------------------------------------------|-----------------------|
+    | Multi-class (single-label); multi-label via flag  | OSR (classify+reject) |
+
+    For multi-class, pass integer class IDs directly to
+    ``class_predictions`` and ``true_classes``. For multi-label, pass an
+    exact-match indicator (1 = all labels predicted correctly, else 0)
+    as ``class_predictions`` paired with ``true_classes`` of all-ones.
 
     The OSCR curve sweeps a threshold ``tau`` over the novelty score:
 
@@ -114,6 +130,14 @@ def compute_nf_rejection_at_tpr(
     tpr: float = 0.95,
 ) -> float:
     """Fraction of No-Finding samples rejected at a fixed ID-disease TPR.
+
+    | Applies to   | Task                       |
+    |--------------|----------------------------|
+    | Multi-label  | Clinical OSR (NF handling) |
+
+    Multi-label only: requires per-sample "No Finding" indicator
+    (all-zero label vector). Has no analogue in multi-class single-label
+    settings.
 
     Calibration protocol:
 

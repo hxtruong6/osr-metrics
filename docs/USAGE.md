@@ -1,9 +1,32 @@
 # Which Metric Should I Use?
 
-A decision guide. Find the row that describes your situation; the right
-column tells you which `osr_metrics` functions to call.
+A decision guide. Answer three questions in order — the answers narrow
+down to a small set of functions.
 
-## Conventions (read these first)
+## Step 1: What is your task type?
+
+| Task type | What it means | Closed-set metrics to use |
+|---|---|---|
+| **Multi-class (single-label)** | Each sample has **one** ground-truth class out of K. Output is a softmax. | `sklearn.metrics.accuracy_score`, `f1_score(..., average='macro')` (use sklearn — native wrapper is on the roadmap) |
+| **Multi-label** | Each sample can have **multiple** positive labels. Output is per-label sigmoid. | `macro_auprc`, `macro_f1_with_thresholds`, `per_label_auprc`, `f1_per_label` |
+| **Regression / density / open-world** | Continuous targets, density estimation, or continual learning | Out of scope — use a different library |
+
+## Step 2: What is your goal?
+
+| Goal | What you want to know |
+|---|---|
+| **Pure OOD detection** | "Can my detector tell ID from OOD?" — binary score is enough; closed-set predictions not required |
+| **Open-Set Recognition (OSR)** | "Does my classifier correctly classify known classes **and** reject unknown classes?" — joint metric (needs both score and class prediction) |
+| **Calibration** | "When my model says P=0.7, is the empirical rate really 70%?" |
+| **Statistical comparison** | "Is method A's AUROC significantly higher than method B's?" |
+
+## Step 3: Look up the function
+
+After you know your task type and goal, the **capability matrix in
+`README.md`** gives you the function list at a glance. The decision
+tree below provides the exact call signatures.
+
+## Conventions (read these once)
 
 - **Score direction**: every OOD/novelty score in this library follows
   **higher = more OOD**. ID-positive metrics (`aupr_in`) handle the sign
@@ -11,6 +34,25 @@ column tells you which `osr_metrics` functions to call.
 - **Multi-label probabilities**: use **sigmoid (per-label)**, not softmax.
 - **Pairing comparisons**: when comparing methods on the same data, always
   use the same seed split.
+
+## Decision flowchart
+
+```mermaid
+flowchart TD
+    Start[What do I want?] --> Q1{Pure detection<br/>or classify+reject?}
+    Q1 -->|Detection only| OOD[Section A:<br/>auroc, fpr_at_95tpr, aupr_in/out]
+    Q1 -->|Classify + reject| OSR{Multi-class<br/>or multi-label?}
+    OSR -->|Multi-class| MC[Section C:<br/>compute_aoscr<br/>preds = argmax]
+    OSR -->|Multi-label| ML[Section C:<br/>compute_aoscr exact-match<br/>+ compute_fourclass_metrics]
+    Start --> Q2{Closed-set<br/>quality?}
+    Q2 -->|Multi-label| CLS[Section B:<br/>macro_auprc, macro_f1]
+    Q2 -->|Multi-class| CLS2[Use sklearn:<br/>accuracy_score, f1_score]
+    Start --> Q3{Calibration?}
+    Q3 -->|Multi-label/binary| CAL[Section D:<br/>expected_calibration_error, brier_score]
+    Q3 -->|Multi-class softmax| CAL2[Use sklearn or torchmetrics<br/>roadmap: native overload]
+    Start --> Q4{Compare<br/>methods?}
+    Q4 --> STAT[Section E:<br/>delong_test, bootstrap_ci]
+```
 
 ## Decision tree
 

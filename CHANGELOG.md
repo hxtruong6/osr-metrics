@@ -6,6 +6,35 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-04-29
+
+Documentation release. Clarifies which task each metric applies to —
+multi-class classification, multi-label classification, or both — so
+users can find the right function without reading source.
+
+### Added
+- **Capability matrix in README.md** — 14-row × 6-column grid mapping
+  every public function to its supported task types, plus a new "Scope"
+  section that explicitly states this library covers semantic-shift
+  detection only (covariate shift, regression, and continual learning
+  are out of scope). Four numbered footnotes call out the ⚠ cases.
+- **Per-function "Applies to" tables in docstrings** — all 16 public
+  functions across `ood.py`, `osr.py`, `fourclass.py`, `classification.py`,
+  `calibration.py`, and `delong.py` now show their applicable task types
+  at the top of `help(...)`.
+- **Module-level scope banners** in each metric module:
+  - `ood.py` — task-agnostic
+  - `osr.py` — multi-class + multi-label, with NF helper multi-label only
+  - `fourclass.py` — multi-label only
+  - `classification.py` — multi-label only
+  - `calibration.py` — multi-label / binary; multi-class on roadmap
+  - `delong.py` — task-agnostic, paired
+
+### Changed
+- `docs/USAGE.md` restructured around a three-step preamble (task type →
+  goal → look up function) with a mermaid flowchart. Now points readers
+  at the README capability matrix as the primary reference.
+
 ## [0.1.2] — 2026-04-29
 
 First public release on PyPI. Install with `pip install osr-metrics`.

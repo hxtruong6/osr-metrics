@@ -1,5 +1,10 @@
 """DeLong test for comparing two AUROC curves on the same data.
 
+**Scope: task-agnostic.** Operates on two score arrays + shared binary
+labels. Use whenever you have AUROC for two methods on the *same*
+samples (multi-class OOD, multi-label OSR, anomaly detection — anywhere
+``auroc`` applies).
+
 Implements the O(n log n) DeLong test using placement values and
 covariance estimation, following DeLong et al. (1988).
 """
@@ -63,6 +68,13 @@ def delong_test(
     labels: np.ndarray,
 ) -> tuple[float, float]:
     """Compare two AUROC curves on the same data using the DeLong test.
+
+    | Applies to | Task                                |
+    |------------|-------------------------------------|
+    | Any        | Statistical comparison (paired AUROC)|
+
+    Both methods must be evaluated on the **same samples** with the
+    **same labels**; the test is paired.
 
     Args:
         scores_a: OOD scores from method A. Shape [N].

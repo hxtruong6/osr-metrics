@@ -1,4 +1,11 @@
-"""Probability calibration metrics for multi-label OSR evaluation.
+"""Probability calibration metrics.
+
+**Scope: multi-label / binary.** Both functions flatten ``probs`` and
+``labels`` across (sample, label) pairs, treating each as an independent
+binary observation. For multi-class (single-label) softmax calibration
+(Guo 2017 form) — top-1 confidence vs correctness — use
+``sklearn.calibration.calibration_curve`` or ``torchmetrics.CalibrationError``;
+a multi-class overload is on the roadmap.
 
 Two metrics:
 
@@ -26,6 +33,12 @@ def expected_calibration_error(
     n_bins: int = 15,
 ) -> float:
     """Expected Calibration Error (equal-width binning) for multi-label probs.
+
+    | Applies to       | Task         |
+    |------------------|--------------|
+    | Multi-label / binary | Calibration |
+
+    Not for multi-class softmax (use top-1 confidence form instead).
 
     Flattens ``probs`` and ``labels`` across (sample, label) pairs so each
     label position is one observation. Buckets the probabilities into
@@ -82,6 +95,10 @@ def expected_calibration_error(
 
 def brier_score(probs: np.ndarray, labels: np.ndarray) -> float:
     """Brier score (mean squared error) for multi-label probabilities.
+
+    | Applies to           | Task         |
+    |----------------------|--------------|
+    | Multi-label / binary | Calibration  |
 
     For binary / multi-label problems::
 

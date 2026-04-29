@@ -25,6 +25,53 @@ conventions and first-principles-verified formulas.
 All functions take plain `numpy` arrays and return scalars or simple
 dictionaries — no PyTorch, TensorFlow, or framework lock-in.
 
+## Scope
+
+This library targets the **semantic-shift** setting (OSR / near-OOD /
+far-OOD): novel class labels appear at test time. Covariate shift
+(domain generalization), regression OOD, and continual / open-world
+learning are **out of scope**.
+
+## Capability matrix — which function for which setting?
+
+Read across to find your setting; functions marked ✅ apply directly.
+⚠ = applies with a small adapter (see footnote). ❌ = not applicable.
+
+| Function | Multi-class<br>(single-label) | Multi-label | Pure OOD<br>detection | OSR<br>(classify+reject) | Calibration | Statistical<br>test |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| `auroc` | ✅ | ✅ | ✅ | — | — | — |
+| `fpr_at_tpr` / `fpr_at_95tpr` | ✅ | ✅ | ✅ | — | — | — |
+| `aupr_in` / `aupr_out` | ✅ | ✅ | ✅ | — | — | — |
+| `compute_aoscr` / `oscr_curve` | ✅ | ⚠ ¹ | — | ✅ | — | — |
+| `compute_nf_rejection_at_tpr` | ❌ | ✅ | — | ✅ ² | — | — |
+| `partition_ood_by_purity` | ❌ | ✅ | — | ✅ ² | — | — |
+| `build_fourclass_masks` / `compute_fourclass_metrics` | ❌ | ✅ | — | ✅ ² | — | — |
+| `macro_auprc` / `macro_auprc_id_labels` | ❌ ³ | ✅ | — | — | — | — |
+| `per_label_auprc` / `f1_per_label` | ❌ ³ | ✅ | — | — | — | — |
+| `macro_f1_with_thresholds` | ❌ ³ | ✅ | — | — | — | — |
+| `expected_calibration_error` | ⚠ ⁴ | ✅ | — | — | ✅ | — |
+| `brier_score` | ⚠ ⁴ | ✅ | — | — | ✅ | — |
+| `delong_test` | ✅ | ✅ | ✅ | ✅ | — | ✅ |
+| `bootstrap_ci` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+¹ Multi-label OSCR/AOSCR: pass an exact-match indicator
+(`1` if all labels predicted correctly, else `0`) as `class_predictions`
+with `true_classes=ones(N)`. See `compute_aoscr` docstring.
+
+² Clinical / multi-label OSR helpers — depend on a per-sample
+"No Finding" (all-zero label vector) indicator that has no analogue in
+multi-class single-label settings.
+
+³ Multi-class single-label closed-set classification — use
+`sklearn.metrics.accuracy_score` and
+`sklearn.metrics.f1_score(..., average='macro')` directly. A native
+multi-class wrapper is on the roadmap.
+
+⁴ Multi-class softmax calibration (Guo 2017 form) is **not yet** the
+form implemented here. Current functions flatten across (sample, label).
+For multi-class softmax, use `sklearn.calibration.calibration_curve` or
+`torchmetrics.CalibrationError` until the multi-class overload lands.
+
 ## Score-direction convention
 
 For every OOD/novelty metric in this library, **higher score = more OOD**.

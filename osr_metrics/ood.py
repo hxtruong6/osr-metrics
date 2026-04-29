@@ -1,3 +1,12 @@
+"""Binary OOD-detection metrics (task-agnostic).
+
+**Scope:** task-agnostic — operate on a 1-D score array and binary
+ID-vs-OOD labels. Applicable to multi-class (single-label), multi-label,
+and any setting where you can produce a per-sample novelty score.
+
+**Score-direction convention:** higher = more OOD. ID-positive metrics
+(``aupr_in``) handle the sign flip internally.
+"""
 from __future__ import annotations
 
 import warnings
@@ -11,6 +20,10 @@ warnings.filterwarnings("ignore", message="No positive class found in y_true")
 
 def fpr_at_tpr(scores: np.ndarray, labels: np.ndarray, target_tpr: float = 0.95) -> float:
     """Compute False Positive Rate at a given True Positive Rate.
+
+    | Applies to | Task             |
+    |------------|------------------|
+    | Any        | OOD detection    |
 
     Args:
         scores: OOD scores (higher = more OOD). Shape [N].
@@ -27,18 +40,32 @@ def fpr_at_tpr(scores: np.ndarray, labels: np.ndarray, target_tpr: float = 0.95)
 
 
 def fpr_at_95tpr(scores: np.ndarray, labels: np.ndarray) -> float:
-    """Compute False Positive Rate at 95% True Positive Rate."""
+    """Compute False Positive Rate at 95% True Positive Rate.
+
+    | Applies to | Task             |
+    |------------|------------------|
+    | Any        | OOD detection    |
+    """
     return fpr_at_tpr(scores, labels, target_tpr=0.95)
 
 
 def auroc(scores: np.ndarray, labels: np.ndarray) -> float:
-    """Area Under the ROC Curve for OOD detection."""
+    """Area Under the ROC Curve for OOD detection.
+
+    | Applies to | Task             |
+    |------------|------------------|
+    | Any        | OOD detection    |
+    """
     from sklearn.metrics import roc_auc_score
     return float(roc_auc_score(labels, scores))
 
 
 def aupr_in(scores: np.ndarray, labels: np.ndarray) -> float:
     """Area Under the Precision-Recall Curve with ID as positive class (AUPR-In).
+
+    | Applies to | Task             |
+    |------------|------------------|
+    | Any        | OOD detection    |
 
     Args:
         scores: OOD scores (higher = more OOD). Shape [N].
@@ -54,6 +81,10 @@ def aupr_in(scores: np.ndarray, labels: np.ndarray) -> float:
 
 def aupr_out(scores: np.ndarray, labels: np.ndarray) -> float:
     """Area Under the Precision-Recall Curve with OOD as positive class (AUPR-Out).
+
+    | Applies to | Task             |
+    |------------|------------------|
+    | Any        | OOD detection    |
 
     Args:
         scores: OOD scores (higher = more OOD). Shape [N].
@@ -73,6 +104,10 @@ def partition_ood_by_purity(
     held_out_labels: list[str],
 ) -> tuple[np.ndarray, np.ndarray]:
     """Partition OOD images into pure-OOD and mixed-OOD subsets.
+
+    | Applies to   | Task                        |
+    |--------------|-----------------------------|
+    | Multi-label  | OSR sub-population analysis |
 
     Pure OOD: images where ALL positive labels are in held_out_labels.
     Mixed OOD: OOD images that also have positive non-held-out labels.
@@ -105,6 +140,14 @@ def oscr_curve(
     n_thresholds: int = 1000,
 ) -> tuple[np.ndarray, np.ndarray, float]:
     """Open-Set Classification Rate (OSCR) curve (Dhamija et al. 2018).
+
+    | Applies to                                        | Task                  |
+    |---------------------------------------------------|-----------------------|
+    | Multi-class (single-label); multi-label via flag  | OSR (classify+reject) |
+
+    Multi-label callers must reduce per-sample correctness to a single
+    indicator (1 = all labels predicted correctly, else 0) and pass it as
+    ``cls_correct``.
 
     Sweeps a novelty threshold tau. At each tau:
       * a sample is **accepted** iff ``novelty_score <= tau``;
@@ -181,6 +224,10 @@ def bootstrap_ci(
     stratify: bool = False,
 ) -> tuple[float, float, float]:
     """Percentile bootstrap confidence interval for any scalar metric.
+
+    | Applies to | Task                  |
+    |------------|-----------------------|
+    | Any        | Statistical comparison|
 
     Args:
         scores: per-sample scores, shape ``[N]``.

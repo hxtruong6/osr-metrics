@@ -1,3 +1,11 @@
+"""Closed-set classification metrics.
+
+**Scope: multi-label only.** All functions in this module assume per-label
+sigmoid probabilities (shape ``[N, K]``) and multi-hot ground truth
+(shape ``[N, K]``). For multi-class (single-label) closed-set
+evaluation, use ``sklearn.metrics.accuracy_score`` /
+``sklearn.metrics.f1_score(..., average='macro')`` directly.
+"""
 from __future__ import annotations
 
 import warnings
@@ -11,6 +19,10 @@ warnings.filterwarnings("ignore", message="No positive class found in y_true")
 
 def macro_auprc(probs: np.ndarray, labels: np.ndarray) -> float:
     """Macro-averaged Area Under Precision-Recall Curve.
+
+    | Applies to   | Task                       |
+    |--------------|----------------------------|
+    | Multi-label  | Closed-set classification  |
 
     Args:
         probs:  predicted probabilities, shape [N, K].
@@ -29,6 +41,10 @@ def macro_auprc_id_labels(
     held_out_labels: list[str],
 ) -> float:
     """Macro-AUPRC over known (non-held-out) labels only.
+
+    | Applies to   | Task                                        |
+    |--------------|---------------------------------------------|
+    | Multi-label  | Closed-set classification (held-out aware)  |
 
     In leave-p-out, test_id has no positive examples of held-out labels.
     Including them yields 0.0 per-label AUPRC and unfairly penalizes the score.
@@ -55,6 +71,10 @@ def macro_auprc_id_labels(
 def per_label_auprc(probs: np.ndarray, labels: np.ndarray) -> list[float]:
     """Per-label AUPRC scores.
 
+    | Applies to   | Task                                |
+    |--------------|-------------------------------------|
+    | Multi-label  | Closed-set classification (per-label)|
+
     Args:
         probs:  predicted probabilities, shape [N, K].
         labels: ground-truth multi-hot, shape [N, K].
@@ -79,6 +99,10 @@ def macro_f1_with_thresholds(
 ) -> float:
     """Macro-F1 using per-label thresholds instead of fixed 0.5.
 
+    | Applies to   | Task                       |
+    |--------------|----------------------------|
+    | Multi-label  | Closed-set classification  |
+
     Args:
         probs:      predicted probabilities, shape [N, K].
         labels:     ground-truth multi-hot, shape [N, K].
@@ -98,6 +122,10 @@ def f1_per_label(
     preds: np.ndarray, labels: np.ndarray
 ) -> dict[int, float]:
     """Per-label F1 score.
+
+    | Applies to   | Task                                  |
+    |--------------|---------------------------------------|
+    | Multi-label  | Closed-set classification (per-label) |
 
     Args:
         preds:  binary predictions, shape [N, K].
