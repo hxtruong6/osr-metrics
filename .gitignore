@@ -10,3 +10,6 @@ htmlcov/
 .venv/
 venv/
 .DS_Store
+
+# Local-only planning artifacts (not for publication)
+docs/superpowers/
