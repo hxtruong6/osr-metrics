@@ -241,3 +241,44 @@ def eaurc(ood_score: np.ndarray, loss: np.ndarray) -> float:
     """
     score, loss_arr = _validate_score_loss(ood_score, loss)
     return aurc(score, loss_arr) - aurc(loss_arr, loss_arr)
+
+
+def selective_risk_at_coverage(
+    ood_score: np.ndarray,
+    loss: np.ndarray,
+    coverage: float,
+) -> float:
+    """Selective risk when keeping the lowest-score ``⌈coverage·N⌉`` samples.
+
+    | Applies to | Task                          |
+    |------------|-------------------------------|
+    | Any        | Selective prediction          |
+
+    Args:
+        ood_score: Higher = more likely to reject. Shape ``[N]``.
+        loss: Per-sample non-negative loss. Shape ``[N]``.
+        coverage: Float in ``(0, 1]``.
+
+    Returns:
+        Mean loss over the selected subset.
+
+    Raises:
+        ValueError: If ``coverage <= 0`` or ``coverage > 1``.
+
+    Notes:
+        Tie-boundary policy: if ``⌈coverage·N⌉`` lands inside a run of
+        equal averaged ranks, the entire run is included. The realised
+        coverage may exceed the requested coverage by up to
+        ``(run_size - 1) / N``. This keeps the function sign-symmetric
+        and input-order-independent at the cost of slight over-coverage
+        on heavily-tied scores.
+    """
+    score, loss_arr = _validate_score_loss(ood_score, loss)
+    c = _validate_coverage(coverage)
+    cov_curve, risk_curve, _ = _rc_curve_with_ties(score, loss_arr)
+    # Smallest curve coverage >= requested c. cov_curve is strictly
+    # increasing, so np.searchsorted with side='left' gives the first
+    # index where cov_curve[i] >= c.
+    idx = int(np.searchsorted(cov_curve, c, side="left"))
+    idx = min(idx, len(cov_curve) - 1)
+    return float(risk_curve[idx])

@@ -12,6 +12,7 @@ from osr_metrics.selective import (
     aurc,
     eaurc,
     rc_curve,
+    selective_risk_at_coverage,
 )
 
 
@@ -347,3 +348,55 @@ class TestEaurc:
     def test_validation_propagates(self):
         with pytest.raises(ValueError, match="non-negative"):
             eaurc(np.array([0.1, 0.2]), np.array([0.0, -0.1]))
+
+
+class TestSelectiveRiskAtCoverage:
+    def test_full_coverage_equals_overall_risk(self):
+        rng = np.random.RandomState(11)
+        score = rng.standard_normal(100)
+        loss = rng.binomial(1, 0.4, size=100).astype(float)
+        got = selective_risk_at_coverage(score, loss, 1.0)
+        assert got == pytest.approx(loss.mean(), abs=1e-12)
+
+    def test_smallest_coverage_picks_lowest_score_sample(self):
+        score = np.array([0.5, 0.1, 0.9, 0.3])
+        loss = np.array([1.0, 0.0, 1.0, 0.0])
+        # 1/4 coverage selects the single lowest-score sample (idx 1, loss 0).
+        assert selective_risk_at_coverage(score, loss, 0.25) == 0.0
+
+    def test_ceiling_semantics(self):
+        score = np.array([0.1, 0.2, 0.3, 0.4])
+        loss = np.array([0.0, 1.0, 0.0, 1.0])
+        # ceil(0.3 * 4) = 2 samples → mean of [loss for two lowest score]
+        # = mean of (loss[0], loss[1]) = (0.0 + 1.0) / 2 = 0.5
+        assert selective_risk_at_coverage(score, loss, 0.3) == pytest.approx(0.5)
+
+    def test_tied_boundary_includes_full_run(self):
+        # Boundary lands inside a 3-way tie. Per spec, include the whole
+        # run → effective coverage may exceed requested coverage.
+        score = np.array([0.1, 0.2, 0.2, 0.2, 0.3])
+        loss = np.array([0.0, 1.0, 0.0, 1.0, 0.0])
+        # ceil(0.4 * 5) = 2 → would land inside the {0.2, 0.2, 0.2} run.
+        # rc_curve has end-of-run points at coverage = [1/5, 4/5, 5/5];
+        # searchsorted for c=0.4 returns the first cov >= c, which is 4/5,
+        # with risk = cum_mean[3] = (0+1+0+1)/4 = 0.5.
+        got = selective_risk_at_coverage(score, loss, 0.4)
+        assert got == pytest.approx(0.5, abs=1e-12)
+
+    def test_rejects_zero_coverage(self):
+        with pytest.raises(ValueError, match=r"\(0, 1\]"):
+            selective_risk_at_coverage(np.array([0.1, 0.2]), np.array([0.0, 1.0]), 0.0)
+
+    def test_rejects_above_one(self):
+        with pytest.raises(ValueError, match=r"\(0, 1\]"):
+            selective_risk_at_coverage(np.array([0.1, 0.2]), np.array([0.0, 1.0]), 1.5)
+
+    def test_rejects_negative(self):
+        with pytest.raises(ValueError, match=r"\(0, 1\]"):
+            selective_risk_at_coverage(np.array([0.1, 0.2]), np.array([0.0, 1.0]), -0.1)
+
+    def test_validation_propagates(self):
+        with pytest.raises(ValueError, match="non-negative"):
+            selective_risk_at_coverage(
+                np.array([0.1, 0.2]), np.array([0.0, -0.1]), 0.5
+            )
