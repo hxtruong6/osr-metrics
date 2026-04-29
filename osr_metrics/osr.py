@@ -119,7 +119,7 @@ def compute_aoscr(
     fpr_sorted = fpr_list[order]
     ccr_sorted = ccr_list[order]
 
-    _trapz = getattr(np, "trapezoid", None) or np.trapz
+    _trapz = getattr(np, "trapezoid", None) or np.trapz  # type: ignore[attr-defined]
     return float(_trapz(ccr_sorted, fpr_sorted))
 
 
@@ -185,3 +185,51 @@ def compute_nf_rejection_at_tpr(
     nf_scores = scores[nf_mask]
     rejected = float((nf_scores > tau).sum()) / float(nf_mask.sum())
     return rejected
+
+
+def compute_aoscr_multiclass(
+    scores: np.ndarray,
+    ood_labels: np.ndarray,
+    preds: np.ndarray,
+    y: np.ndarray,
+    n_thresholds: int = 1000,
+) -> float:
+    """AOSCR for multi-class (single-label) OSR — convenience wrapper.
+
+    | Applies to                | Task                  |
+    |---------------------------|-----------------------|
+    | Multi-class (single-label)| OSR (classify+reject) |
+
+    Thin wrapper over ``compute_aoscr`` that accepts predictions in
+    either form:
+
+    - Integer class IDs, shape ``[N]`` — passed straight through.
+    - Softmax / logit matrix, shape ``[N, K]`` — reduced via
+      ``argmax(axis=1)`` before passing through.
+
+    For multi-label OSR, use ``compute_aoscr`` directly with an
+    exact-match indicator.
+
+    Args:
+        scores: Novelty scores, shape ``[N]``. Higher = more OOD.
+        ood_labels: Binary OOD ground truth, shape ``[N]``.
+        preds: Either integer class predictions ``[N]`` or a softmax /
+            logit matrix ``[N, K]``.
+        y: Integer ground-truth classes, shape ``[N]``.
+        n_thresholds: Number of threshold steps for the OSCR curve.
+
+    Returns:
+        AOSCR in ``[0, 1]``. Higher is better.
+    """
+    preds = np.asarray(preds)
+    if preds.ndim == 2:
+        class_predictions = preds.argmax(axis=1)
+    elif preds.ndim == 1:
+        class_predictions = preds
+    else:
+        raise ValueError(
+            f"preds must be 1-D [N] or 2-D [N, K], got shape {preds.shape}"
+        )
+    return compute_aoscr(
+        scores, ood_labels, class_predictions, np.asarray(y), n_thresholds=n_thresholds
+    )

@@ -18,6 +18,33 @@ from sklearn.metrics import roc_curve
 warnings.filterwarnings("ignore", message="No positive class found in y_true")
 
 
+def _validate_scores_labels(scores, labels, fn_name: str) -> None:
+    """Shape / dtype / value checks shared by binary OOD metrics."""
+    s = np.asarray(scores)
+    y = np.asarray(labels)
+    if s.ndim != 1:
+        raise ValueError(
+            f"{fn_name}: scores must be 1-D [N], got shape {s.shape}"
+        )
+    if y.ndim != 1:
+        raise ValueError(
+            f"{fn_name}: labels must be 1-D [N], got shape {y.shape}. "
+            "If you have a multi-hot label matrix, pass an OOD indicator "
+            "(1 = OOD, 0 = ID) instead."
+        )
+    if s.shape[0] != y.shape[0]:
+        raise ValueError(
+            f"{fn_name}: scores/labels length mismatch: "
+            f"{s.shape[0]} vs {y.shape[0]}"
+        )
+    uniq = np.unique(y)
+    if not np.all(np.isin(uniq, [0, 1])):
+        raise ValueError(
+            f"{fn_name}: labels must be binary {{0, 1}}; got values {uniq}. "
+            "1 = OOD, 0 = in-distribution."
+        )
+
+
 def fpr_at_tpr(scores: np.ndarray, labels: np.ndarray, target_tpr: float = 0.95) -> float:
     """Compute False Positive Rate at a given True Positive Rate.
 
@@ -33,8 +60,13 @@ def fpr_at_tpr(scores: np.ndarray, labels: np.ndarray, target_tpr: float = 0.95)
     Returns:
         FPR at the given TPR in [0, 1]. Lower is better.
     """
+    _validate_scores_labels(scores, labels, "fpr_at_tpr")
+    if not 0.0 < target_tpr <= 1.0:
+        raise ValueError(
+            f"fpr_at_tpr: target_tpr must be in (0, 1]; got {target_tpr}"
+        )
     fpr, tpr, _ = roc_curve(labels, scores)
-    idx = np.searchsorted(tpr, target_tpr)
+    idx = int(np.searchsorted(tpr, target_tpr))
     idx = min(idx, len(fpr) - 1)
     return float(fpr[idx])
 
@@ -56,6 +88,7 @@ def auroc(scores: np.ndarray, labels: np.ndarray) -> float:
     |------------|------------------|
     | Any        | OOD detection    |
     """
+    _validate_scores_labels(scores, labels, "auroc")
     from sklearn.metrics import roc_auc_score
     return float(roc_auc_score(labels, scores))
 
@@ -74,9 +107,10 @@ def aupr_in(scores: np.ndarray, labels: np.ndarray) -> float:
     Returns:
         AUPR-In in [0, 1]. Higher is better.
     """
+    _validate_scores_labels(scores, labels, "aupr_in")
     from sklearn.metrics import average_precision_score
     # ID is positive class: negate scores so ID images score higher
-    return float(average_precision_score(1 - labels, -scores))
+    return float(average_precision_score(1 - np.asarray(labels), -np.asarray(scores)))
 
 
 def aupr_out(scores: np.ndarray, labels: np.ndarray) -> float:
@@ -93,6 +127,7 @@ def aupr_out(scores: np.ndarray, labels: np.ndarray) -> float:
     Returns:
         AUPR-Out in [0, 1]. Higher is better.
     """
+    _validate_scores_labels(scores, labels, "aupr_out")
     from sklearn.metrics import average_precision_score
     return float(average_precision_score(labels, scores))
 
@@ -156,11 +191,10 @@ def oscr_curve(
 
     AOSCR is the area under the (FPR, CCR) curve in [0, 1]; higher is better.
 
-    NOTE (canonical convention): this function follows Dhamija 2018 / Vaze 2022.
-    Earlier versions in this repo computed FPR as the *ID-rejection rate*
-    (an internally consistent but non-canonical variant). All call-sites have
-    been migrated. Use ``src.metrics.osr.compute_aoscr`` for the same metric
-    invoked by an explicit (predictions, true_classes) interface.
+    Canonical convention: this function follows Dhamija 2018 / Vaze 2022
+    (FPR = OOD-acceptance rate, CCR = correct ID classification rate).
+    Use ``compute_aoscr`` for the same metric invoked by an explicit
+    (predictions, true_classes) interface.
 
     Args:
         novelty_scores: open-set scores (higher = more OOD). Shape [N].
@@ -209,7 +243,7 @@ def oscr_curve(
     fpr_sorted = fpr_list[sort_idx]
     ccr_sorted = ccr_list[sort_idx]
 
-    _trapz = getattr(np, "trapezoid", None) or np.trapz
+    _trapz = getattr(np, "trapezoid", None) or np.trapz  # type: ignore[attr-defined]
     aoscr = float(_trapz(ccr_sorted, fpr_sorted))
     return fpr_sorted, ccr_sorted, aoscr
 

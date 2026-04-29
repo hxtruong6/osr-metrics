@@ -1,14 +1,87 @@
 # End-to-End Examples
 
-A worked example mirroring how you'd actually use this library: load a
-saved predictions file, compute the full publication metric panel, run
-statistical comparison against a baseline.
+Worked examples mirroring how you'd actually use this library: load
+cached predictions, compute the publication metric panel, run
+statistical comparison.
 
-The examples below use synthetic data so they run as-is. To use real data,
-replace `make_synthetic_run()` with code that loads your own
-`scores.json`-style dict.
+The examples below use synthetic data so they run as-is.
 
-## Example 1: full metric panel from a saved run
+- **Example 1** — multi-class (single-label) OSR (CIFAR-style)
+- **Example 2** — multi-label OSR (chest-X-ray-style), full panel
+- **Example 3** — pairwise DeLong comparison
+- **Example 4** — seed aggregation
+- **Example 5** — loading from a real `scores.json`
+
+## Example 1: multi-class (single-label) OSR
+
+For a CIFAR-style setup: K known classes (held-in) + a held-out class
+treated as OOD. The library's `compute_panel` infers the multi-class
+setting from input shapes and computes everything in one call.
+
+```python
+import numpy as np
+from osr_metrics import compute_panel, as_ood_scores
+
+
+def make_multiclass_run(seed: int = 0):
+    """Synthetic multi-class OSR run.
+
+    Returns:
+        scores:      [N] novelty scores, higher = more OOD
+        ood_labels:  [N] binary OOD ground truth (1 = held-out class)
+        logits:      [N, K] closed-set logits (over K known classes)
+        y:           [N] integer ground-truth class IDs in [0, K)
+    """
+    rng = np.random.default_rng(seed)
+    N, K = 1000, 5
+    held_out_class = K  # one held-out class with id == K
+
+    # Sample 30% OOD
+    is_ood = rng.uniform(0, 1, N) < 0.3
+    y_full = np.where(is_ood, held_out_class, rng.integers(0, K, N))
+    ood_labels = is_ood.astype(int)
+
+    # Logits: high on the true class for ID; flat for OOD
+    logits = rng.normal(0, 1, (N, K))
+    id_mask = ~is_ood
+    logits[id_mask, y_full[id_mask]] += 3.0  # ID samples get a peak
+
+    # OOD score = -max-logit (lower max-logit → more OOD)
+    confidence = logits.max(axis=1)
+    scores = as_ood_scores(confidence, direction="confidence")
+
+    # For the closed-set head, we report only on ID samples
+    y = np.where(is_ood, 0, y_full)  # OOD labels masked; AOSCR uses ood_labels
+    return scores, ood_labels, logits, y
+
+
+scores, ood_labels, logits, y = make_multiclass_run(seed=0)
+
+# Softmax for calibration; argmax for the closed-set head.
+def softmax(x):
+    e = np.exp(x - x.max(axis=1, keepdims=True))
+    return e / e.sum(axis=1, keepdims=True)
+
+panel = compute_panel(
+    scores,
+    ood_labels,
+    probs=softmax(logits),  # accepts logits or softmax for argmax;
+                            # calibration metrics need true probs in [0, 1]
+    y=y,
+)
+
+for k, v in sorted(panel.items()):
+    if isinstance(v, float):
+        print(f"  {k:30s} = {v:.4f}")
+    else:
+        print(f"  {k:30s} = {v}")
+```
+
+The output includes `auroc`, `fpr_at_95tpr`, `aupr_in/out`, `aoscr`,
+`top1_accuracy`, `macro_f1`, `balanced_accuracy`, `ece`, `brier` — the
+full multi-class headline panel from one call.
+
+## Example 2: multi-label OSR — full publication panel
 
 ```python
 import json
@@ -60,8 +133,14 @@ def make_synthetic_run(seed: int = 0):
     }
 
 
-def compute_panel(run: dict) -> dict:
-    """Compute the full publication metric panel from one run."""
+def compute_panel_manual(run: dict) -> dict:
+    """Compute the full publication metric panel from one run.
+
+    The same result can be obtained in a single call with
+    ``osr_metrics.compute_panel`` (see the bottom of this example);
+    this manual version shows what each function contributes so you can
+    pick a subset.
+    """
     s = run["ood_scores"]
     y_ood = run["ood_labels"]
     p = run["probs"]
@@ -112,13 +191,31 @@ def compute_panel(run: dict) -> dict:
 
 if __name__ == "__main__":
     run = make_synthetic_run(seed=0)
-    panel = compute_panel(run)
+    panel = compute_panel_manual(run)
 
     # Pretty-print, separating the dict from the float keys.
     counts = panel.pop("counts_per_class")
     for k, v in sorted(panel.items()):
         print(f"  {k:35s} = {v:.4f}")
     print(f"\n  per-class counts: {counts}")
+```
+
+### Same panel via one call
+
+```python
+from osr_metrics import compute_panel
+
+run = make_synthetic_run(seed=0)
+panel = compute_panel(
+    run["ood_scores"],
+    run["ood_labels"],
+    preds=run["probs"].round().astype(int),
+    probs=run["probs"],
+    label_vecs=run["label_vecs"],
+    label_names=run["label_names"],
+    held_out_labels=run["held_out_labels"],
+    setting="multilabel",
+)
 ```
 
 Expected output (synthetic):
@@ -145,7 +242,7 @@ Expected output (synthetic):
   per-class counts: {'id_disease': ..., 'no_finding': ..., 'pure_ood': ..., 'mixed_ood': ...}
 ```
 
-## Example 2: pairwise method comparison with DeLong
+## Example 3: pairwise method comparison with DeLong
 
 ```python
 import numpy as np
@@ -174,7 +271,7 @@ of samples (`labels`). Use this when comparing methods on a fixed test split.
 For seed-averaged comparisons across multiple seeds (different random splits
 per seed), use a paired t-test on the per-seed AUROC values instead.
 
-## Example 3: aggregating across seeds
+## Example 4: aggregating across seeds
 
 ```python
 import numpy as np
@@ -192,7 +289,7 @@ print(f"AUROC mean ± std: {per_seed.mean():.4f} ± {per_seed.std(ddof=1):.4f}")
 The std across seeds is the **reproducibility** number that goes alongside
 the mean in any paper table.
 
-## Example 4: loading from a real scores.json
+## Example 5: loading from a real scores.json
 
 If your run produces a JSON file with the same keys as `make_synthetic_run`
 returns, swap it in:
@@ -213,7 +310,7 @@ run = {
     "held_out_labels": raw["held_out_labels"],
 }
 
-panel = compute_panel(run)
+panel = compute_panel_manual(run)
 ```
 
 That's it — no GPU required, no model loaded; the metrics work on cached

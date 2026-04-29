@@ -7,7 +7,7 @@ down to a small set of functions.
 
 | Task type | What it means | Closed-set metrics to use |
 |---|---|---|
-| **Multi-class (single-label)** | Each sample has **one** ground-truth class out of K. Output is a softmax. | `sklearn.metrics.accuracy_score`, `f1_score(..., average='macro')` (use sklearn — native wrapper is on the roadmap) |
+| **Multi-class (single-label)** | Each sample has **one** ground-truth class out of K. Output is a softmax. | `top1_accuracy`, `macro_f1_multiclass`, `balanced_accuracy` |
 | **Multi-label** | Each sample can have **multiple** positive labels. Output is per-label sigmoid. | `macro_auprc`, `macro_f1_with_thresholds`, `per_label_auprc`, `f1_per_label` |
 | **Regression / density / open-world** | Continuous targets, density estimation, or continual learning | Out of scope — use a different library |
 
@@ -42,14 +42,14 @@ flowchart TD
     Start[What do I want?] --> Q1{Pure detection<br/>or classify+reject?}
     Q1 -->|Detection only| OOD[Section A:<br/>auroc, fpr_at_95tpr, aupr_in/out]
     Q1 -->|Classify + reject| OSR{Multi-class<br/>or multi-label?}
-    OSR -->|Multi-class| MC[Section C:<br/>compute_aoscr<br/>preds = argmax]
+    OSR -->|Multi-class| MC[Section C:<br/>compute_aoscr_multiclass]
     OSR -->|Multi-label| ML[Section C:<br/>compute_aoscr exact-match<br/>+ compute_fourclass_metrics]
     Start --> Q2{Closed-set<br/>quality?}
     Q2 -->|Multi-label| CLS[Section B:<br/>macro_auprc, macro_f1]
-    Q2 -->|Multi-class| CLS2[Use sklearn:<br/>accuracy_score, f1_score]
+    Q2 -->|Multi-class| CLS2[Section B0:<br/>top1_accuracy, macro_f1_multiclass]
     Start --> Q3{Calibration?}
     Q3 -->|Multi-label/binary| CAL[Section D:<br/>expected_calibration_error, brier_score]
-    Q3 -->|Multi-class softmax| CAL2[Use sklearn or torchmetrics<br/>roadmap: native overload]
+    Q3 -->|Multi-class softmax| CAL2[Section D:<br/>expected_calibration_error_multiclass,<br/>brier_score_multiclass]
     Start --> Q4{Compare<br/>methods?}
     Q4 --> STAT[Section E:<br/>delong_test, bootstrap_ci]
 ```
@@ -65,6 +65,17 @@ flowchart TD
 | Asymmetric PR — quality of OOD-suspicious ranking | `aupr_out(scores, labels)` |
 | Asymmetric PR — quality of ID-confident ranking | `aupr_in(scores, labels)` |
 
+### B0. I have multi-class (single-label) predictions — how good is my closed-set classifier?
+
+| Question | Function |
+|---|---|
+| Top-1 accuracy from logits or class IDs | `top1_accuracy(preds, y)` |
+| Macro-F1 (equal weight per class, robust to imbalance) | `macro_f1_multiclass(preds, y)` |
+| Class-balanced accuracy (mean per-class recall) | `balanced_accuracy(preds, y)` |
+
+All three accept either integer predictions `[N]` or a softmax / logit
+matrix `[N, K]` — no need to `argmax` yourself.
+
 ### B. I have multi-label predictions — how good is my closed-set classifier?
 
 | Question | Function |
@@ -79,9 +90,23 @@ flowchart TD
 The headline number is **AOSCR**: it jointly evaluates classification
 correctness on accepted ID samples vs OOD-rejection rate.
 
+**Multi-class (single-label)** — pass logits or class IDs:
+
 ```python
+from osr_metrics import compute_aoscr_multiclass
+aoscr = compute_aoscr_multiclass(novelty_scores, ood_labels, logits_NK, y_N)
+# or with integer predictions:
+aoscr = compute_aoscr_multiclass(novelty_scores, ood_labels, preds_N, y_N)
+```
+
+**Multi-label** — pass an exact-match indicator (1 if all labels
+predicted correctly, else 0):
+
+```python
+import numpy as np
 from osr_metrics import compute_aoscr
-aoscr = compute_aoscr(novelty_scores, ood_labels, class_predictions, true_classes)
+exact_match = (preds == labels).all(axis=1).astype(int)
+aoscr = compute_aoscr(novelty_scores, ood_labels, exact_match, np.ones_like(exact_match))
 ```
 
 For a richer view, get all five AUROC pairings in one call:
@@ -104,10 +129,14 @@ Then pick the keys you want to report:
 
 ### D. I want to know if my probabilities are calibrated
 
-| Question | Function |
-|---|---|
-| Are P=0.7 predictions hitting 70% empirical rate? | `expected_calibration_error(probs, labels)` |
-| Combined calibration + sharpness (strictly proper rule) | `brier_score(probs, labels)` |
+Pick the row that matches your task type:
+
+| Task type | Question | Function |
+|---|---|---|
+| Multi-label / binary | Per-label P=0.7 hits 70% empirical rate? | `expected_calibration_error(probs, labels)` |
+| Multi-label / binary | Combined calibration + sharpness | `brier_score(probs, labels)` |
+| Multi-class softmax | Top-1 confidence well-calibrated? (Guo 2017 form) | `expected_calibration_error_multiclass(probs, y)` |
+| Multi-class softmax | Multi-class Brier (one-hot vs softmax) | `brier_score_multiclass(probs, y)` |
 
 ### E. I want to compare two methods statistically
 
@@ -129,17 +158,21 @@ which NF (no-finding, healthy) images are rejected by that threshold. Higher
 
 ## Common mistakes
 
-1. **Forgetting score direction**: if your model returns a *confidence* score
-   (higher = more confident in ID), pass `-confidence` to all OOD functions,
-   or wrap with a small adapter.
-2. **Using `auroc_pure` as the deployment number**: it is a *diagnostic
-   upper bound* (mixed OOD removed from negatives). Report `auroc_full` or
-   `aoscr` as the headline; report `auroc_pure` alongside, never alone.
-3. **Bootstrapping without `stratify=True` on imbalanced data**: small OOD
-   classes can produce all-ID replicates → NaN AUROC → biased CI. Pass
-   `stratify=True`.
-4. **Mixing different seed splits across DeLong tests**: DeLong is paired —
-   it requires `scores_a` and `scores_b` evaluated on the *same* samples.
+See [`PITFALLS.md`](PITFALLS.md) for the full list with bad-vs-good
+code side by side. The most-hit ones:
+
+1. **Forgetting score direction** — wrap confidence scores once with
+   `as_ood_scores(scores, direction="confidence")`.
+2. **AOSCR on multi-label without an exact-match indicator** — use
+   `compute_aoscr_multiclass` for multi-class, or pass
+   `(preds == labels).all(axis=1)` for multi-label.
+3. **Multi-class softmax through `expected_calibration_error`** — use
+   `expected_calibration_error_multiclass` instead.
+4. **Bootstrapping without `stratify=True`** on imbalanced data.
+5. **DeLong on different splits** — DeLong is paired; both methods
+   must score the same samples.
+6. **`auroc_pure` as the headline** — it's a diagnostic upper bound;
+   pair with `auroc_full`.
 
 ## Putting it together: the full publication panel
 

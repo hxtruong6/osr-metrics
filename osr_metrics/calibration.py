@@ -129,3 +129,100 @@ def brier_score(probs: np.ndarray, labels: np.ndarray) -> float:
             f"probs/labels shape mismatch: {probs.shape} vs {labels.shape}"
         )
     return float(np.mean((probs - labels) ** 2))
+
+
+def expected_calibration_error_multiclass(
+    probs: np.ndarray,
+    y: np.ndarray,
+    n_bins: int = 15,
+) -> float:
+    """ECE for multi-class softmax (Guo 2017 form).
+
+    | Applies to                | Task         |
+    |---------------------------|--------------|
+    | Multi-class (single-label)| Calibration  |
+
+    Uses **top-1 confidence** (``max_k probs[n, k]``) and **top-1
+    correctness** (``argmax_k probs[n, k] == y[n]``) — the canonical
+    multi-class reliability-diagram protocol from Guo et al. 2017.
+
+    For multi-label / per-label binary calibration, use
+    ``expected_calibration_error`` instead.
+
+    Args:
+        probs: Softmax probabilities, shape ``[N, K]``. Each row should
+            sum to 1.
+        y: Integer class labels in ``[0, K)``, shape ``[N]``.
+        n_bins: Number of equal-width bins on ``[0, 1]``.
+
+    Returns:
+        ECE in ``[0, 1]``. Returns ``float('nan')`` if no observations.
+    """
+    probs = np.asarray(probs, dtype=float)
+    y = np.asarray(y).astype(int)
+    if probs.ndim != 2:
+        raise ValueError(f"probs must be 2-D [N, K], got shape {probs.shape}")
+    if probs.shape[0] != y.shape[0]:
+        raise ValueError(
+            f"probs/y length mismatch: {probs.shape[0]} vs {y.shape[0]}"
+        )
+    if probs.shape[0] == 0:
+        return float("nan")
+
+    if probs.size and (probs.min() < 0.0 or probs.max() > 1.0 + 1e-6):
+        raise ValueError(
+            "expected_calibration_error_multiclass: probs out of [0, 1] "
+            f"(min={probs.min():.4f}, max={probs.max():.4f}). Did you "
+            "pass raw logits? Apply softmax first."
+        )
+
+    confidences = probs.max(axis=1)
+    predictions = probs.argmax(axis=1)
+    correct = (predictions == y).astype(float)
+    return expected_calibration_error(confidences, correct, n_bins=n_bins)
+
+
+def brier_score_multiclass(probs: np.ndarray, y: np.ndarray) -> float:
+    """Multi-class Brier score (one-hot targets vs softmax probs).
+
+    | Applies to                | Task         |
+    |---------------------------|--------------|
+    | Multi-class (single-label)| Calibration  |
+
+    Computes::
+
+        Brier = mean_n sum_k (probs[n, k] - onehot(y)[n, k])^2
+
+    The sum-over-classes form (range ``[0, 2]``) is the standard
+    multi-class definition. For multi-label / per-label binary Brier,
+    use ``brier_score`` instead.
+
+    Args:
+        probs: Softmax probabilities, shape ``[N, K]``.
+        y: Integer class labels in ``[0, K)``, shape ``[N]``.
+
+    Returns:
+        Brier score in ``[0, 2]``. Lower is better.
+    """
+    probs = np.asarray(probs, dtype=float)
+    y = np.asarray(y).astype(int)
+    if probs.ndim != 2:
+        raise ValueError(f"probs must be 2-D [N, K], got shape {probs.shape}")
+    if probs.shape[0] != y.shape[0]:
+        raise ValueError(
+            f"probs/y length mismatch: {probs.shape[0]} vs {y.shape[0]}"
+        )
+    if probs.shape[0] == 0:
+        return float("nan")
+
+    if probs.size and (probs.min() < 0.0 or probs.max() > 1.0 + 1e-6):
+        raise ValueError(
+            "brier_score_multiclass: probs out of [0, 1] "
+            f"(min={probs.min():.4f}, max={probs.max():.4f}). Did you "
+            "pass raw logits? Apply softmax first."
+        )
+
+    N, K = probs.shape
+    onehot = np.zeros((N, K), dtype=float)
+    onehot[np.arange(N), y] = 1.0
+    return float(np.mean(((probs - onehot) ** 2).sum(axis=1)))

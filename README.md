@@ -2,25 +2,37 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/osr-metrics.svg)](https://pypi.org/project/osr-metrics/)
 [![Python versions](https://img.shields.io/pypi/pyversions/osr-metrics.svg)](https://pypi.org/project/osr-metrics/)
+[![Downloads](https://static.pepy.tech/badge/osr-metrics)](https://pepy.tech/project/osr-metrics)
 [![License: MIT](https://img.shields.io/pypi/l/osr-metrics.svg)](https://github.com/hxtruong6/osr-metrics/blob/main/LICENSE)
 [![CI](https://github.com/hxtruong6/osr-metrics/actions/workflows/ci.yml/badge.svg)](https://github.com/hxtruong6/osr-metrics/actions/workflows/ci.yml)
 
-Open-Set Recognition (OSR) and OOD-detection metrics for machine-learning research.
+**Plain-numpy metrics for Open-Set Recognition and OOD-detection research — no PyTorch, no datasets, just the math.**
 
-A small, framework-agnostic Python library that bundles the metrics needed
-for credible OSR / OOD-detection publications, with consistent score-direction
-conventions and first-principles-verified formulas.
+## Why osr-metrics?
+
+Most OSR / OOD libraries (PyTorch-OOD, OpenOOD) couple metrics with detection
+methods, datasets, and a heavy framework. `osr-metrics` is *just the metrics* —
+useful when you have cached scores from any pipeline and want to compute
+AOSCR, FPR@95TPR, or DeLong on them, regardless of how those scores were
+produced.
+
+- **Framework-agnostic** — `numpy` arrays in, scalars or dicts out. No PyTorch / TensorFlow / dataset dependencies.
+- **Verified formulas** — every metric checked against a first-principles brute-force reference.
+- **Consistent conventions** — for every OOD/novelty score, **higher = more OOD**. ID-positive metrics (`aupr_in`) handle the sign flip internally.
+- **Statistical rigor** — DeLong (O(n log n) rank-based) and stratified bootstrap CIs are first-class, not afterthoughts.
 
 ## What's inside
 
 | Group | Metrics |
 |---|---|
 | OOD detection | `auroc`, `fpr_at_tpr`, `fpr_at_95tpr`, `aupr_in`, `aupr_out` |
-| Open-Set Recognition | `compute_aoscr` (canonical Dhamija/Vaze), `oscr_curve`, `compute_nf_rejection_at_tpr` |
+| Open-Set Recognition | `compute_aoscr` (canonical Dhamija/Vaze), `compute_aoscr_multiclass`, `oscr_curve`, `compute_nf_rejection_at_tpr` |
+| Multi-class (single-label) classification | `top1_accuracy`, `macro_f1_multiclass`, `balanced_accuracy` |
 | Multi-label classification | `macro_auprc`, `macro_auprc_id_labels`, `macro_f1_with_thresholds`, `per_label_auprc`, `f1_per_label` |
 | Four-class OSR partitioning | `build_fourclass_masks`, `compute_fourclass_metrics`, `partition_ood_by_purity` |
-| Calibration | `expected_calibration_error`, `brier_score` |
+| Calibration | `expected_calibration_error`, `expected_calibration_error_multiclass`, `brier_score`, `brier_score_multiclass` |
 | Statistical comparison | `delong_test` (O(n log n) rank-based), `bootstrap_ci` (with optional stratification) |
+| Utilities | `as_ood_scores` (score-direction adapter), `warn_if_inverted_scores`, `compute_panel` (one-call publication panel) |
 
 All functions take plain `numpy` arrays and return scalars or simple
 dictionaries — no PyTorch, TensorFlow, or framework lock-in.
@@ -43,34 +55,32 @@ Read across to find your setting; functions marked ✅ apply directly.
 | `fpr_at_tpr` / `fpr_at_95tpr` | ✅ | ✅ | ✅ | — | — | — |
 | `aupr_in` / `aupr_out` | ✅ | ✅ | ✅ | — | — | — |
 | `compute_aoscr` / `oscr_curve` | ✅ | ⚠ ¹ | — | ✅ | — | — |
+| `compute_aoscr_multiclass` | ✅ | ❌ | — | ✅ | — | — |
 | `compute_nf_rejection_at_tpr` | ❌ | ✅ | — | ✅ ² | — | — |
 | `partition_ood_by_purity` | ❌ | ✅ | — | ✅ ² | — | — |
 | `build_fourclass_masks` / `compute_fourclass_metrics` | ❌ | ✅ | — | ✅ ² | — | — |
-| `macro_auprc` / `macro_auprc_id_labels` | ❌ ³ | ✅ | — | — | — | — |
-| `per_label_auprc` / `f1_per_label` | ❌ ³ | ✅ | — | — | — | — |
-| `macro_f1_with_thresholds` | ❌ ³ | ✅ | — | — | — | — |
-| `expected_calibration_error` | ⚠ ⁴ | ✅ | — | — | ✅ | — |
-| `brier_score` | ⚠ ⁴ | ✅ | — | — | ✅ | — |
+| `top1_accuracy` / `macro_f1_multiclass` / `balanced_accuracy` | ✅ | ❌ | — | — | — | — |
+| `macro_auprc` / `macro_auprc_id_labels` | ❌ | ✅ | — | — | — | — |
+| `per_label_auprc` / `f1_per_label` | ❌ | ✅ | — | — | — | — |
+| `macro_f1_with_thresholds` | ❌ | ✅ | — | — | — | — |
+| `expected_calibration_error` | ❌ | ✅ | — | — | ✅ | — |
+| `expected_calibration_error_multiclass` | ✅ | ❌ | — | — | ✅ | — |
+| `brier_score` | ❌ | ✅ | — | — | ✅ | — |
+| `brier_score_multiclass` | ✅ | ❌ | — | — | ✅ | — |
 | `delong_test` | ✅ | ✅ | ✅ | ✅ | — | ✅ |
 | `bootstrap_ci` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `as_ood_scores` / `warn_if_inverted_scores` | ✅ | ✅ | ✅ | ✅ | — | — |
+| `compute_panel` | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 
 ¹ Multi-label OSCR/AOSCR: pass an exact-match indicator
 (`1` if all labels predicted correctly, else `0`) as `class_predictions`
-with `true_classes=ones(N)`. See `compute_aoscr` docstring.
+with `true_classes=ones(N)`. See `compute_aoscr` docstring. (For
+multi-class, use `compute_aoscr_multiclass` instead — it accepts logits
+or class-IDs directly.)
 
 ² Clinical / multi-label OSR helpers — depend on a per-sample
 "No Finding" (all-zero label vector) indicator that has no analogue in
 multi-class single-label settings.
-
-³ Multi-class single-label closed-set classification — use
-`sklearn.metrics.accuracy_score` and
-`sklearn.metrics.f1_score(..., average='macro')` directly. A native
-multi-class wrapper is on the roadmap.
-
-⁴ Multi-class softmax calibration (Guo 2017 form) is **not yet** the
-form implemented here. Current functions flatten across (sample, label).
-For multi-class softmax, use `sklearn.calibration.calibration_curve` or
-`torchmetrics.CalibrationError` until the multi-class overload lands.
 
 ## Score-direction convention
 
@@ -98,24 +108,57 @@ pip install -e .[dev]
 
 ```python
 import numpy as np
-from osr_metrics import auroc, fpr_at_95tpr, compute_aoscr, expected_calibration_error
+from osr_metrics import (
+    auroc, fpr_at_95tpr,
+    compute_aoscr_multiclass,
+    expected_calibration_error_multiclass,
+)
 
-# OOD detection
-scores = np.random.randn(1000)          # higher = more OOD
-labels = np.random.randint(0, 2, 1000)  # 1 = OOD, 0 = ID
-print("AUROC:", auroc(scores, labels))
-print("FPR@95TPR:", fpr_at_95tpr(scores, labels))
+rng = np.random.default_rng(0)
 
-# Open-Set Classification Rate (joint classify+reject)
-cls_pred = np.random.randint(0, 5, 1000)
-cls_true = np.random.randint(0, 5, 1000)
-print("AOSCR:", compute_aoscr(scores, labels, cls_pred, cls_true))
+# OOD detection: 800 ID points, 200 OOD points with shifted score distribution.
+id_scores  = rng.normal(0.0, 1.0, size=800)   # ID:  N(0, 1)
+ood_scores = rng.normal(2.0, 1.0, size=200)   # OOD: N(2, 1) — higher = more OOD
+scores = np.concatenate([id_scores, ood_scores])
+labels = np.concatenate([np.zeros(800), np.ones(200)])  # 1 = OOD
+print(f"AUROC:     {auroc(scores, labels):.3f}")        # ~0.92
+print(f"FPR@95TPR: {fpr_at_95tpr(scores, labels):.3f}") # ~0.36
 
-# Calibration
-probs = np.random.uniform(0, 1, (1000, 14))
-multi_labels = (np.random.uniform(0, 1, (1000, 14)) < probs).astype(int)
-print("ECE:", expected_calibration_error(probs, multi_labels))
+# Open-Set Classification Rate: joint classify + reject, 80% closed-set accuracy.
+n, k = 1000, 5
+true_cls = rng.integers(0, k, size=n)
+correct  = rng.random(n) < 0.80
+pred_cls = np.where(correct, true_cls, (true_cls + 1) % k)
+print(f"AOSCR:     {compute_aoscr_multiclass(scores, labels, pred_cls, true_cls):.3f}")
+
+# Multi-class softmax calibration (Guo 2017 form).
+probs = rng.dirichlet(np.ones(k) * 0.5, size=n)
+probs[np.arange(n), true_cls] += 1.0          # bias toward the correct class
+probs /= probs.sum(axis=1, keepdims=True)
+print(f"ECE:       {expected_calibration_error_multiclass(probs, true_cls):.3f}")
 ```
+
+## One-call publication panel
+
+When you have all the inputs and just want the table:
+
+```python
+from osr_metrics import compute_panel
+
+# Multi-class
+out = compute_panel(scores, ood_labels, probs=softmax_NK, y=y_N)
+
+# Multi-label
+out = compute_panel(
+    scores, ood_labels,
+    preds=preds_NK, probs=probs_NK,
+    label_vecs=labels_NK, label_names=names, held_out_labels=held_out,
+    setting="multilabel",
+)
+```
+
+The panel infers your setting from input shapes and computes every
+metric whose required inputs are present.
 
 ## Statistical comparison
 
@@ -162,19 +205,15 @@ Five AUROC pairings answer different questions:
 | `auroc_nf_vs_pure` | NF only | Pure OOD | Diagnostic floor: healthy-vs-anything |
 | `auroc_full` | ID-disease + NF | Pure + Mixed OOD | Full population measurement |
 
-## Why another metrics library?
-
-Most OOD/OSR libraries (PyTorch-OOD, OpenOOD) couple metrics with detection
-methods, datasets, and a heavy framework. `osr-metrics` is just the metrics —
-useful when you want to compute AOSCR or DeLong on cached scores from any
-pipeline, regardless of how those scores were produced.
-
 ## Documentation
 
+- [`docs/CONCEPTS.md`](docs/CONCEPTS.md) — glossary: ID/OOD, OSR, semantic vs covariate shift, near vs far OOD, multi-class vs multi-label.
 - [`docs/USAGE.md`](docs/USAGE.md) — "which metric should I use?" decision tree.
+- [`docs/PITFALLS.md`](docs/PITFALLS.md) — the eight most common mistakes, with bad-vs-good code side by side.
 - [`docs/EXAMPLES.md`](docs/EXAMPLES.md) — end-to-end runnable examples
   including the full publication metric panel, DeLong comparison, and
   seed aggregation.
+- [`REFERENCES.md`](REFERENCES.md) — bibliographic source for every metric.
 - [`CHANGELOG.md`](CHANGELOG.md) — version history.
 - [`CITATION.cff`](CITATION.cff) — citation metadata.
 
@@ -188,6 +227,23 @@ Each metric is verified against a first-principles brute-force reference;
 the test suite covers numerical equivalence, edge cases (empty class,
 single-value scores), and known properties (DeLong z=0 on identical inputs,
 ECE=0.9 on overconfident-wrong, etc.).
+
+## Citation
+
+If `osr-metrics` is useful in your research, please cite it:
+
+```bibtex
+@software{osr_metrics,
+  author  = {Hoang Xuan Truong},
+  title   = {osr-metrics: Open-Set Recognition and OOD-Detection Metrics for ML Research},
+  url     = {https://github.com/hxtruong6/osr-metrics},
+  year    = {2026}
+}
+```
+
+Machine-readable metadata is in [`CITATION.cff`](CITATION.cff). When citing a
+specific version, append `version = {X.Y.Z}` and reference the matching
+[GitHub Release](https://github.com/hxtruong6/osr-metrics/releases).
 
 ## License
 

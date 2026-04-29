@@ -6,6 +6,82 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-30
+
+Multi-class first-class support, one-call publication panel, and an
+explicit "which metric for which setting?" surface across docs, code,
+and validation. The library now closes the multi-class functional gap
+that previously forced users to drop down to `sklearn` and remember
+`argmax` / `softmax` conventions per metric.
+
+### Added
+- **Multi-class (single-label) closed-set metrics** in new
+  `osr_metrics/multiclass.py`:
+  - `top1_accuracy(preds, y)`
+  - `macro_f1_multiclass(preds, y)`
+  - `balanced_accuracy(preds, y)`
+  - All accept either integer predictions `[N]` or a logits / softmax
+    matrix `[N, K]` — no `argmax` boilerplate.
+- **Multi-class OSR convenience wrapper** `compute_aoscr_multiclass`
+  in `osr_metrics/osr.py`. Accepts integer predictions or logits;
+  internally reduces to class IDs and calls `compute_aoscr`.
+- **Multi-class calibration overloads** in `osr_metrics/calibration.py`:
+  - `expected_calibration_error_multiclass(probs, y)` — Guo 2017 form
+    (top-1 confidence vs top-1 correctness).
+  - `brier_score_multiclass(probs, y)` — sum-over-classes form, range
+    `[0, 2]`.
+  - Both raise a clear `ValueError` if raw logits are passed by
+    mistake (most common user error).
+- **Score-direction adapter** in new `osr_metrics/utils.py`:
+  - `as_ood_scores(scores, direction="ood"|"confidence"|"id")` — flips
+    sign once at the boundary.
+  - `warn_if_inverted_scores(scores, labels, threshold=0.5)` — emits a
+    warning when AUROC < 0.5, suggesting the likely score-direction fix.
+- **One-call publication panel** `compute_panel(...)` in new
+  `osr_metrics/panel.py`. Auto-infers multi-class vs multi-label from
+  input shapes; computes every metric whose required inputs are
+  present; gracefully skips missing pieces. Returns a flat dict with
+  one nested `fourclass` block for multi-label.
+- **Input validation** for the OOD-detection entry points
+  (`auroc`, `fpr_at_tpr`, `aupr_in`, `aupr_out`):
+  - 1-D scores and labels, length match, binary `{0, 1}` labels,
+    `target_tpr ∈ (0, 1]`. Errors include a hint pointing at the right
+    fix.
+- **Documentation**:
+  - `docs/CONCEPTS.md` — glossary covering ID/OOD, OSR vs OOD
+    detection, semantic vs covariate shift, near vs far OOD,
+    multi-class vs multi-label, score direction, and what's out of
+    scope.
+  - `docs/PITFALLS.md` — the eight most-hit mistakes, with bad-vs-good
+    code side by side. Linked from README and `USAGE.md`.
+  - New multi-class worked example in `docs/EXAMPLES.md`, including
+    softmax handling and the one-call `compute_panel` form.
+- **mypy** configured in `pyproject.toml` with a practical (not
+  `--strict`) ruleset that catches Optional misuse, untyped def bodies,
+  and unreachable branches without forcing `NDArray[float64]`
+  everywhere. Run via `mypy` from the repo root. Added to dev extras.
+- **Tests**: 33 new tests across `tests/test_multiclass.py` (T5–T7) and
+  `tests/test_utils_panel.py` (T8 / T13 / T14). Total: 95 passing.
+
+### Changed
+- README capability matrix updated to include all new functions; the
+  former ⚠³ (multi-class closed-set) and ⚠⁴ (multi-class calibration)
+  caveats are now ✅. Footnotes consolidated.
+- `docs/USAGE.md` "Common mistakes" section trimmed and now points at
+  the comprehensive `PITFALLS.md`. Decision-tree mermaid updated to
+  reference the new multi-class functions.
+- `docs/EXAMPLES.md` reorganised: multi-class example added as
+  Example 1; multi-label panel renumbered to Example 2; the local
+  helper `compute_panel` renamed to `compute_panel_manual` to avoid
+  shadowing the new public `osr_metrics.compute_panel`.
+- Module-level docstring of `osr_metrics/osr.py` no longer references
+  the legacy `src.metrics.osr` path or the project-internal "v17"
+  milestone label.
+
+### Fixed
+- `compute_aoscr_multiclass` correctly threads `n_thresholds` through
+  to `compute_aoscr`.
+
 ## [0.1.3] — 2026-04-29
 
 Documentation release. Clarifies which task each metric applies to —
