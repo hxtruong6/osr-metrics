@@ -154,6 +154,23 @@ print(f"full = {metrics['auroc_full']:.3f}, "
       f"mixed = {metrics['auroc_mixed']:.3f}")
 ```
 
+## 8. Forgetting that "label" means "OOD label" (not "class label")
+
+**Symptom**: `ValueError: labels must be binary {0, 1}` when calling
+`auroc` / `fpr_at_95tpr` / `aupr_in` / `aupr_out`.
+
+**Why**: in the OOD-detection functions, `labels` is the binary
+**OOD ground truth** (1 = OOD, 0 = ID), not the closed-set class label.
+
+```python
+# ❌ Wrong: passing class IDs
+auroc(scores, y_classes)
+
+# ✅ Right: convert held-out classes to an OOD indicator
+ood_labels = np.isin(y_classes, held_out_class_ids).astype(int)
+auroc(scores, ood_labels)
+```
+
 ## 9. AURC is not an OOD-detection metric
 
 **Bad:**
@@ -177,20 +194,3 @@ aurc_value = aurc(score, loss)                  # selective classification
 ```
 
 If you want a single number that captures both — joint OSR — use `compute_aoscr` instead.
-
-## 8. Forgetting that "label" means "OOD label" (not "class label")
-
-**Symptom**: `ValueError: labels must be binary {0, 1}` when calling
-`auroc` / `fpr_at_95tpr` / `aupr_in` / `aupr_out`.
-
-**Why**: in the OOD-detection functions, `labels` is the binary
-**OOD ground truth** (1 = OOD, 0 = ID), not the closed-set class label.
-
-```python
-# ❌ Wrong: passing class IDs
-auroc(scores, y_classes)
-
-# ✅ Right: convert held-out classes to an OOD indicator
-ood_labels = np.isin(y_classes, held_out_class_ids).astype(int)
-auroc(scores, ood_labels)
-```

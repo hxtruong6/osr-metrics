@@ -146,6 +146,16 @@ Pick the row that matches your task type:
 | One method, want a CI on its AUROC | `bootstrap_ci(scores, labels, auroc, n_bootstrap=1000)` | Use `stratify=True` if classes are very imbalanced. |
 | Multiple seeds, want the mean ± std | `np.std([auroc per seed], ddof=1)` | One line, no library function needed. |
 
+### F. I want a healthy-patient false-alarm number
+
+```python
+from osr_metrics import compute_nf_rejection_at_tpr
+rej = compute_nf_rejection_at_tpr(scores, ood_labels, nf_labels, tpr=0.95)
+```
+Calibrates the threshold on ID-disease at TPR=0.95, then reports the rate at
+which NF (no-finding, healthy) images are rejected by that threshold. Higher
+= better (healthy patients flagged for review rather than auto-classified).
+
 ### G. Do you have a per-sample loss and want to evaluate score quality as a ranker?
 
 → **AURC / E-AURC** (`osr_metrics.aurc`, `osr_metrics.eaurc`).
@@ -166,16 +176,6 @@ Use `rc_curve` for the full curve, `aurc` for the scalar summary,
 | Gap to the oracle ranker | `eaurc(ood_score, loss)` |
 | Risk when keeping the most-confident X% | `selective_risk_at_coverage(ood_score, loss, coverage)` |
 | Accuracy when keeping the most-confident X% | `selective_accuracy_at_coverage(ood_score, loss, coverage)` |
-
-### F. I want a healthy-patient false-alarm number
-
-```python
-from osr_metrics import compute_nf_rejection_at_tpr
-rej = compute_nf_rejection_at_tpr(scores, ood_labels, nf_labels, tpr=0.95)
-```
-Calibrates the threshold on ID-disease at TPR=0.95, then reports the rate at
-which NF (no-finding, healthy) images are rejected by that threshold. Higher
-= better (healthy patients flagged for review rather than auto-classified).
 
 ## Common mistakes
 
