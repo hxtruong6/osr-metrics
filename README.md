@@ -1,5 +1,10 @@
 # osr-metrics
 
+[![PyPI version](https://img.shields.io/pypi/v/osr-metrics.svg)](https://pypi.org/project/osr-metrics/)
+[![Python versions](https://img.shields.io/pypi/pyversions/osr-metrics.svg)](https://pypi.org/project/osr-metrics/)
+[![License: MIT](https://img.shields.io/pypi/l/osr-metrics.svg)](https://github.com/hxtruong6/osr-metrics/blob/main/LICENSE)
+[![CI](https://github.com/hxtruong6/osr-metrics/actions/workflows/ci.yml/badge.svg)](https://github.com/hxtruong6/osr-metrics/actions/workflows/ci.yml)
+
 Open-Set Recognition (OSR) and OOD-detection metrics for machine-learning research.
 
 A small, framework-agnostic Python library that bundles the metrics needed
@@ -29,12 +34,18 @@ have to.
 ## Install
 
 ```bash
-pip install -e .
-# or, with dev tools:
-pip install -e .[dev]
+pip install osr-metrics
 ```
 
 Requires Python 3.10+, `numpy`, `scikit-learn`, `scipy`.
+
+### Development install
+
+```bash
+git clone https://github.com/hxtruong6/osr-metrics.git
+cd osr-metrics
+pip install -e .[dev]
+```
 
 ## Quick start
 
