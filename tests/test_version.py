@@ -16,7 +16,10 @@ def test_version_matches_pyproject():
     returns the version setuptools recorded at install time. Mismatch means
     someone bumped pyproject.toml without reinstalling.
     """
-    import tomllib
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # Python 3.10 — use the tomli backport
+        import tomli as tomllib
     from pathlib import Path
 
     pyproject = Path(__file__).parent.parent / "pyproject.toml"
