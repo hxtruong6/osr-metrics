@@ -26,6 +26,7 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
+from scipy.stats import rankdata
 
 __all__ = [
     "rc_curve",
@@ -82,3 +83,45 @@ def _validate_coverage(coverage: float) -> float:
     if c <= 0.0 or c > 1.0:
         raise ValueError(f"coverage must be in (0, 1], got {c}")
     return c
+
+
+def _rc_curve_with_ties(
+    ood_score: np.ndarray,
+    loss: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Risk–coverage curve, collapsed to one point per unique score.
+
+    For tied scores, the curve has a single (coverage, risk, threshold)
+    point at the *end* of each tied run, with risk = cum_mean[end_idx]
+    (the natural selective risk = mean loss over all samples with score
+    <= end-of-run threshold). This is input-order-invariant: the risk at
+    each end-of-run point depends only on which samples have score <=
+    that threshold, not on the within-run ordering.
+    """
+    score, loss_arr = _validate_score_loss(ood_score, loss)
+    n = score.size
+
+    # rankdata(method="average") assigns tied samples the same rank,
+    # making run boundaries trivial to detect after a stable sort.
+    ranks = rankdata(score, method="average")
+    order = np.argsort(ranks, kind="stable")
+    sorted_loss = loss_arr[order]
+    sorted_ranks = ranks[order]
+    sorted_score = score[order]
+
+    # cum_mean[i] = mean(sorted_loss[: i + 1]); the natural selective
+    # risk if the prefix sorted_loss[: i + 1] is the kept set.
+    cum_sum = np.cumsum(sorted_loss)
+    cum_mean = cum_sum / np.arange(1, n + 1)
+
+    # Identify end-of-run indices (last sample in each tied rank-run).
+    run_end_mask = np.empty(n, dtype=bool)
+    run_end_mask[:-1] = sorted_ranks[1:] != sorted_ranks[:-1]
+    run_end_mask[-1] = True
+    end_idx = np.where(run_end_mask)[0]
+
+    coverage = (end_idx + 1) / n
+    risk = cum_mean[end_idx]
+    threshold = sorted_score[end_idx]
+
+    return coverage.astype(float), risk, threshold.astype(float)

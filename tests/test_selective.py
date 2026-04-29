@@ -96,3 +96,110 @@ class TestValidateCoverage:
     def test_rejects_string(self):
         with pytest.raises(TypeError, match="real scalar"):
             _validate_coverage("0.5")
+
+
+from osr_metrics.selective import _rc_curve_with_ties
+
+
+def _brute_force_rc_curve_no_ties(score, loss):
+    """O(N^2) reference for the non-tied case.
+
+    For k = 1..N, take the k samples with the lowest score and average
+    their loss. Returns (coverage, risk, threshold) of length N.
+    """
+    score = np.asarray(score, dtype=float)
+    loss = np.asarray(loss, dtype=float)
+    n = len(score)
+    order = np.argsort(score, kind="stable")
+    coverage = np.empty(n, dtype=float)
+    risk = np.empty(n, dtype=float)
+    threshold = np.empty(n, dtype=float)
+    for k in range(1, n + 1):
+        sel = order[:k]
+        coverage[k - 1] = k / n
+        risk[k - 1] = float(np.mean(loss[sel]))
+        threshold[k - 1] = float(score[sel[-1]])
+    return coverage, risk, threshold
+
+
+class TestRcCurveWithTies:
+    def test_no_ties_matches_brute_force(self):
+        rng = np.random.RandomState(0)
+        for n in (10, 100, 500):
+            for seed in range(5):
+                rng2 = np.random.RandomState(seed)
+                score = rng2.standard_normal(n)
+                loss = rng2.binomial(1, 0.3, size=n).astype(float)
+                cov, risk, thr = _rc_curve_with_ties(score, loss)
+                bcov, brisk, bthr = _brute_force_rc_curve_no_ties(score, loss)
+                np.testing.assert_allclose(cov, bcov, atol=1e-12)
+                np.testing.assert_allclose(risk, brisk, atol=1e-12)
+                np.testing.assert_allclose(thr, bthr, atol=1e-12)
+
+    def test_returns_three_arrays_of_equal_length(self):
+        cov, risk, thr = _rc_curve_with_ties(
+            np.array([0.1, 0.2, 0.3, 0.4]),
+            np.array([0.0, 1.0, 0.0, 1.0]),
+        )
+        assert cov.shape == risk.shape == thr.shape
+
+    def test_coverage_strictly_increasing(self):
+        rng = np.random.RandomState(1)
+        score = rng.standard_normal(50)
+        loss = rng.binomial(1, 0.4, size=50).astype(float)
+        cov, _, _ = _rc_curve_with_ties(score, loss)
+        assert np.all(np.diff(cov) > 0)
+
+    def test_right_endpoint_is_overall_risk(self):
+        score = np.array([0.1, 0.2, 0.3, 0.4])
+        loss = np.array([0.0, 1.0, 0.0, 1.0])
+        cov, risk, _ = _rc_curve_with_ties(score, loss)
+        assert cov[-1] == 1.0
+        assert risk[-1] == pytest.approx(0.5)
+
+    def test_all_tied_scores_collapses_to_one_point(self):
+        score = np.array([0.5, 0.5, 0.5, 0.5])
+        loss = np.array([0.0, 1.0, 0.0, 1.0])
+        cov, risk, thr = _rc_curve_with_ties(score, loss)
+        assert cov.shape == (1,)
+        assert cov[0] == 1.0
+        assert risk[0] == pytest.approx(0.5)
+        assert thr[0] == 0.5
+
+    def test_partial_ties_collapse_runs(self):
+        # Three groups by unique score: {0.1, 0.1, 0.1}, {0.2, 0.2}, {0.3}.
+        # Risk at the end of each run is cum_mean[end_idx] = mean of
+        # losses over all samples with score <= end-of-run threshold.
+        score = np.array([0.1, 0.1, 0.1, 0.2, 0.2, 0.3])
+        loss = np.array([0.0, 1.0, 1.0, 0.0, 0.0, 1.0])
+        cov, risk, thr = _rc_curve_with_ties(score, loss)
+        assert cov.shape == (3,)
+        np.testing.assert_allclose(cov, [3 / 6, 5 / 6, 6 / 6], atol=1e-12)
+        np.testing.assert_allclose(
+            risk,
+            [
+                (0 + 1 + 1) / 3,           # end of {0.1, 0.1, 0.1}
+                (0 + 1 + 1 + 0 + 0) / 5,   # end of {0.2, 0.2}
+                (0 + 1 + 1 + 0 + 0 + 1) / 6,  # end of {0.3}
+            ],
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(thr, [0.1, 0.2, 0.3], atol=1e-12)
+
+    def test_input_order_invariant(self):
+        score = np.array([0.3, 0.1, 0.4, 0.2])
+        loss = np.array([1.0, 0.0, 0.0, 1.0])
+        cov_a, risk_a, _ = _rc_curve_with_ties(score, loss)
+        perm = np.array([2, 0, 3, 1])
+        cov_b, risk_b, _ = _rc_curve_with_ties(score[perm], loss[perm])
+        np.testing.assert_allclose(cov_a, cov_b, atol=1e-12)
+        np.testing.assert_allclose(risk_a, risk_b, atol=1e-12)
+
+    def test_input_order_invariant_with_ties(self):
+        score = np.array([0.1, 0.1, 0.2, 0.2])
+        loss = np.array([1.0, 0.0, 1.0, 0.0])
+        cov_a, risk_a, _ = _rc_curve_with_ties(score, loss)
+        perm = np.array([3, 0, 2, 1])
+        cov_b, risk_b, _ = _rc_curve_with_ties(score[perm], loss[perm])
+        np.testing.assert_allclose(cov_a, cov_b, atol=1e-12)
+        np.testing.assert_allclose(risk_a, risk_b, atol=1e-12)
