@@ -4,7 +4,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from osr_metrics.selective import _validate_score_loss, _validate_coverage
+from osr_metrics.selective import (
+    _rc_curve_with_ties,
+    _validate_coverage,
+    _validate_score_loss,
+)
 
 
 class TestValidateScoreLoss:
@@ -98,9 +102,6 @@ class TestValidateCoverage:
             _validate_coverage("0.5")
 
 
-from osr_metrics.selective import _rc_curve_with_ties
-
-
 def _brute_force_rc_curve_no_ties(score, loss):
     """O(N^2) reference for the non-tied case.
 
@@ -124,7 +125,6 @@ def _brute_force_rc_curve_no_ties(score, loss):
 
 class TestRcCurveWithTies:
     def test_no_ties_matches_brute_force(self):
-        rng = np.random.RandomState(0)
         for n in (10, 100, 500):
             for seed in range(5):
                 rng2 = np.random.RandomState(seed)
