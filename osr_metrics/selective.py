@@ -26,7 +26,6 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
-from scipy.stats import rankdata
 
 __all__ = [
     "rc_curve",

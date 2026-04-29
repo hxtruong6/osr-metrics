@@ -49,8 +49,12 @@ class TestValidateScoreLoss:
             _validate_score_loss(np.array([0.1, 0.2]), np.array([0.0, np.nan]))
 
     def test_rejects_inf_in_score(self):
-        with pytest.raises(ValueError, match="ood_score contains NaN"):
+        with pytest.raises(ValueError, match="ood_score contains NaN or inf"):
             _validate_score_loss(np.array([0.1, np.inf]), np.array([0.0, 1.0]))
+
+    def test_rejects_inf_in_loss(self):
+        with pytest.raises(ValueError, match="loss contains NaN or inf"):
+            _validate_score_loss(np.array([0.1, 0.2]), np.array([0.0, np.inf]))
 
     def test_rejects_negative_loss(self):
         with pytest.raises(ValueError, match="non-negative"):
