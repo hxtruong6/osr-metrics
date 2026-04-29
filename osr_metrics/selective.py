@@ -282,3 +282,57 @@ def selective_risk_at_coverage(
     idx = int(np.searchsorted(cov_curve, c, side="left"))
     idx = min(idx, len(cov_curve) - 1)
     return float(risk_curve[idx])
+
+
+def selective_accuracy_at_coverage(
+    ood_score: np.ndarray,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    coverage: float,
+) -> float:
+    """Selective accuracy at a target coverage (convenience for 0/1 loss).
+
+    | Applies to                  | Task                  |
+    |-----------------------------|-----------------------|
+    | Multi-class (single-label)  | Selective prediction  |
+
+    Args:
+        ood_score: Higher = more likely to reject. Shape ``[N]``.
+        y_true: Integer class IDs. Shape ``[N]``.
+        y_pred: Either integer class IDs ``[N]`` or 2-D logits / softmax
+            ``[N, K]`` (argmax is taken automatically, matching
+            ``multiclass.py``).
+        coverage: Float in ``(0, 1]``.
+
+    Returns:
+        ``1 − selective_risk_at_coverage`` over the 0/1 loss
+        ``(y_true != y_pred).astype(float)``. Higher is better.
+    """
+    ood_score_arr = np.asarray(ood_score)
+    y_true_arr = np.asarray(y_true)
+    if y_true_arr.ndim != 1:
+        raise ValueError(
+            f"y_true must be 1-D, got shape {y_true_arr.shape}"
+        )
+    y_pred_arr = np.asarray(y_pred)
+    if y_pred_arr.ndim == 2:
+        y_pred_ids = np.asarray(y_pred_arr.argmax(axis=1))
+    elif y_pred_arr.ndim == 1:
+        y_pred_ids = y_pred_arr
+    else:
+        raise ValueError(
+            f"y_pred must be 1-D [N] or 2-D [N, K], got shape {y_pred_arr.shape}"
+        )
+    if y_true_arr.shape[0] != y_pred_ids.shape[0]:
+        raise ValueError(
+            f"y_true and y_pred length mismatch: "
+            f"{y_true_arr.shape[0]} vs {y_pred_ids.shape[0]}"
+        )
+    if ood_score_arr.shape[0] != y_true_arr.shape[0]:
+        raise ValueError(
+            f"ood_score and y_true length mismatch: "
+            f"{ood_score_arr.shape[0]} vs {y_true_arr.shape[0]}"
+        )
+
+    loss = (y_true_arr != y_pred_ids).astype(float)
+    return 1.0 - selective_risk_at_coverage(ood_score_arr, loss, coverage)

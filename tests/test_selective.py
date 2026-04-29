@@ -12,6 +12,7 @@ from osr_metrics.selective import (
     aurc,
     eaurc,
     rc_curve,
+    selective_accuracy_at_coverage,
     selective_risk_at_coverage,
 )
 
@@ -399,4 +400,68 @@ class TestSelectiveRiskAtCoverage:
         with pytest.raises(ValueError, match="non-negative"):
             selective_risk_at_coverage(
                 np.array([0.1, 0.2]), np.array([0.0, -0.1]), 0.5
+            )
+
+
+class TestSelectiveAccuracyAtCoverage:
+    def test_full_coverage_equals_accuracy(self):
+        rng = np.random.RandomState(12)
+        n = 100
+        y_true = rng.randint(0, 5, size=n)
+        y_pred = y_true.copy()
+        flip_idx = rng.choice(n, size=20, replace=False)
+        y_pred[flip_idx] = (y_pred[flip_idx] + 1) % 5  # 80% accuracy
+        score = rng.standard_normal(n)
+        got = selective_accuracy_at_coverage(score, y_true, y_pred, 1.0)
+        assert got == pytest.approx(0.8, abs=1e-12)
+
+    def test_perfect_ranker_full_accuracy_at_low_coverage(self):
+        n = 100
+        y_true = np.zeros(n, dtype=int)
+        y_pred = np.zeros(n, dtype=int)
+        y_pred[:10] = 1  # first 10 are wrong
+        # Score puts errors first → bad. Score puts errors LAST → great.
+        score = np.zeros(n)
+        score[:10] = 100.0  # errors get high OOD score → rejected first
+        # At coverage 0.5, we keep the 50 lowest-score samples (none of
+        # the errors), so selective accuracy = 1.0.
+        got = selective_accuracy_at_coverage(score, y_true, y_pred, 0.5)
+        assert got == 1.0
+
+    def test_2d_y_pred_argmax_reduction(self):
+        rng = np.random.RandomState(13)
+        n = 50
+        y_true = rng.randint(0, 4, size=n)
+        # Build logits where argmax is correct everywhere.
+        logits = np.zeros((n, 4))
+        logits[np.arange(n), y_true] = 5.0
+        score = rng.standard_normal(n)
+        got = selective_accuracy_at_coverage(score, y_true, logits, 1.0)
+        assert got == 1.0
+
+    def test_rejects_2d_y_true(self):
+        with pytest.raises(ValueError, match="y_true"):
+            selective_accuracy_at_coverage(
+                np.array([0.1, 0.2]),
+                np.zeros((2, 3)),
+                np.array([0, 0]),
+                1.0,
+            )
+
+    def test_rejects_3d_y_pred(self):
+        with pytest.raises(ValueError, match="y_pred"):
+            selective_accuracy_at_coverage(
+                np.array([0.1, 0.2]),
+                np.array([0, 0]),
+                np.zeros((2, 3, 4)),
+                1.0,
+            )
+
+    def test_length_mismatch(self):
+        with pytest.raises(ValueError, match="length"):
+            selective_accuracy_at_coverage(
+                np.array([0.1, 0.2]),
+                np.array([0, 0, 0]),
+                np.array([0, 0, 0]),
+                1.0,
             )
