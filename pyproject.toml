@@ -7,10 +7,11 @@ name = "osr-metrics"
 version = "0.1.1"
 description = "Open-Set Recognition (OSR) and OOD-detection metrics for ML research"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [
-    { name = "truong dev" }
+    { name = "truong dev", email = "hxtruong6ac@gmail.com" }
 ]
 keywords = ["open-set-recognition", "ood-detection", "metrics", "auroc", "aoscr", "delong", "calibration"]
 classifiers = [
@@ -18,7 +19,6 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Intended Audience :: Science/Research",
@@ -33,7 +33,10 @@ dependencies = [
 dev = ["pytest>=7", "pytest-cov>=4"]
 
 [project.urls]
-Repository = "https://github.com/yourname/osr-metrics-py"
+Homepage = "https://github.com/hxtruong6/osr-metrics"
+Repository = "https://github.com/hxtruong6/osr-metrics"
+Issues = "https://github.com/hxtruong6/osr-metrics/issues"
+Changelog = "https://github.com/hxtruong6/osr-metrics/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["."]
