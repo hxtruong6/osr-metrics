@@ -6,12 +6,31 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-04-29
+
 ### Added
+- PyPI distribution: `pip install osr-metrics`.
+- GitHub Actions CI: pytest matrix on Python 3.10/3.11/3.12, `python -m build`, `twine check`.
+- Tag-driven release workflow with Trusted Publishing (OIDC). Pre-release tags
+  (`vX.Y.ZrcN`) publish to TestPyPI; stable tags (`vX.Y.Z`) publish to PyPI.
+- `osr_metrics.__version__` now sourced from installed metadata via
+  `importlib.metadata` (was a hardcoded string).
+- `docs/RELEASING.md` — maintainer checklist for cutting releases.
 - `docs/USAGE.md` — decision-tree guide for picking the right metric.
 - `docs/EXAMPLES.md` — end-to-end runnable example covering the full
   publication metric panel, DeLong comparison, and seed aggregation.
 - `CHANGELOG.md` (this file).
 - `CITATION.cff` — machine-readable citation metadata.
+
+### Changed
+- `pyproject.toml` metadata: real Repository/Issues/Changelog URLs, author
+  email, SPDX-format license, removed deprecated MIT classifier.
+- README primary install instruction is now `pip install osr-metrics`;
+  editable install moved to a Development subsection.
+
+### Removed
+- Tracked build artifacts (`*.egg-info/`, `.pytest_cache/`) — they were
+  always supposed to be ignored.
 
 ## [0.1.1] — 2026-04-29
 
