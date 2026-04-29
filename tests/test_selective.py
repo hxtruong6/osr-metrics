@@ -518,3 +518,28 @@ class TestWarnIfInvertedAurc:
         score = np.array([0.1, 0.2, 0.3])
         loss = np.array([0.0, 1.0, 0.0])
         assert warn_if_inverted_aurc(score, loss) is None
+
+
+class TestPackageExports:
+    def test_top_level_imports(self):
+        import osr_metrics
+
+        assert callable(osr_metrics.rc_curve)
+        assert callable(osr_metrics.aurc)
+        assert callable(osr_metrics.eaurc)
+        assert callable(osr_metrics.selective_risk_at_coverage)
+        assert callable(osr_metrics.selective_accuracy_at_coverage)
+        assert callable(osr_metrics.warn_if_inverted_aurc)
+
+    def test_in_dunder_all(self):
+        import osr_metrics
+
+        for name in (
+            "rc_curve",
+            "aurc",
+            "eaurc",
+            "selective_risk_at_coverage",
+            "selective_accuracy_at_coverage",
+            "warn_if_inverted_aurc",
+        ):
+            assert name in osr_metrics.__all__
