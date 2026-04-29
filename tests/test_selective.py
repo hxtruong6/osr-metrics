@@ -10,6 +10,7 @@ from osr_metrics.selective import (
     _validate_coverage,
     _validate_score_loss,
     aurc,
+    eaurc,
     rc_curve,
 )
 
@@ -292,3 +293,57 @@ class TestAurc:
     def test_validation_propagates(self):
         with pytest.raises(ValueError, match="non-negative"):
             aurc(np.array([0.1, 0.2]), np.array([0.0, -0.1]))
+
+
+class TestEaurc:
+    def test_oracle_ranker_zero(self):
+        rng = np.random.RandomState(7)
+        loss = rng.binomial(1, 0.4, size=200).astype(float)
+        # Loss-as-score IS the oracle (sorts ascending by loss).
+        assert eaurc(loss, loss) == pytest.approx(0.0, abs=1e-12)
+
+    def test_oracle_ranker_zero_continuous_loss(self):
+        rng = np.random.RandomState(8)
+        loss = rng.uniform(0, 5, size=200)
+        assert eaurc(loss, loss) == pytest.approx(0.0, abs=1e-12)
+
+    def test_closed_form_matches_empirical_on_binary(self):
+        # Empirical Riemann AURC converges to r + (1-r)*ln(1-r) at rate O(1/N).
+        # We use N=10000 → expect agreement within ~1e-3.
+        rng = np.random.RandomState(9)
+        n = 10000
+        for r in (0.05, 0.1, 0.3, 0.5, 0.7, 0.9):
+            n_ones = int(round(r * n))
+            loss = np.concatenate([np.ones(n_ones), np.zeros(n - n_ones)])
+            rng.shuffle(loss)
+            score = rng.standard_normal(n)
+            empirical = eaurc(score, loss)
+            # Empirical eaurc = aurc(score, loss) - aurc(loss, loss).
+            # Closed form for AURC* = r + (1-r)*ln(1-r), so the closed-form
+            # eaurc is aurc(score, loss) - (r + (1-r)*ln(1-r)).
+            closed = aurc(score, loss) - (r + (1 - r) * np.log(1 - r))
+            # Empirical and closed agree up to O(1/N) ≈ 1e-3 at N=10000.
+            assert empirical == pytest.approx(closed, abs=2e-3)
+
+    def test_eaurc_nonnegative_for_random_ranker(self):
+        rng = np.random.RandomState(10)
+        loss = rng.binomial(1, 0.3, size=1000).astype(float)
+        score = rng.standard_normal(1000)
+        # Random ranker should be no better than oracle → eaurc >= 0.
+        # Allow tiny negative slack for finite-sample fluctuation.
+        assert eaurc(score, loss) >= -1e-9
+
+    def test_all_correct_eaurc_zero(self):
+        score = np.array([0.1, 0.2, 0.3])
+        loss = np.zeros(3)
+        assert eaurc(score, loss) == pytest.approx(0.0, abs=1e-12)
+
+    def test_all_wrong_eaurc_zero(self):
+        score = np.array([0.1, 0.2, 0.3])
+        loss = np.ones(3)
+        # AURC = 1, oracle AURC = 1, so eaurc = 0.
+        assert eaurc(score, loss) == pytest.approx(0.0, abs=1e-12)
+
+    def test_validation_propagates(self):
+        with pytest.raises(ValueError, match="non-negative"):
+            eaurc(np.array([0.1, 0.2]), np.array([0.0, -0.1]))

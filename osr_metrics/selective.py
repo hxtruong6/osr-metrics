@@ -212,3 +212,32 @@ def aurc(ood_score: np.ndarray, loss: np.ndarray) -> float:
     cum_sum = np.cumsum(averaged_loss)
     cum_mean = cum_sum / np.arange(1, n + 1)
     return float(np.mean(cum_mean))
+
+
+def eaurc(ood_score: np.ndarray, loss: np.ndarray) -> float:
+    """Excess AURC over the optimal (oracle-ranked) baseline.
+
+    | Applies to | Task                          |
+    |------------|-------------------------------|
+    | Any        | Selective prediction          |
+
+    Computed empirically as ``aurc(score, loss) - aurc(loss, loss)``.
+    Passing ``loss`` as the score is equivalent to ranking samples by
+    their true loss ascending, which is the oracle ranking.
+
+    For binary 0/1 ``loss``, the empirical baseline converges to the
+    closed form ``r + (1 - r) * ln(1 - r)`` (with ``r = mean(loss)``)
+    from Geifman, Uziel & El-Yaniv 2019, with O(1/N) finite-sample
+    error. We use the empirical form throughout to keep ``eaurc``
+    consistent with ``aurc`` at finite N.
+
+    Args:
+        ood_score: Higher = more likely to reject. Shape ``[N]``.
+        loss: Per-sample non-negative loss. Shape ``[N]``.
+
+    Returns:
+        E-AURC. Equals zero iff the score ranks samples in nondecreasing
+        order of true loss. Lower is better.
+    """
+    score, loss_arr = _validate_score_loss(ood_score, loss)
+    return aurc(score, loss_arr) - aurc(loss_arr, loss_arr)
