@@ -6,9 +6,20 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-04-30
+
+Docs and CI maintenance release. No public-API changes.
+
 ### Added
 
 - Officially support Python 3.13 and 3.14: trove classifiers and CI matrix entries. No code changes required — the library is pure-numpy/scipy/sklearn and all dependencies ship wheels for both versions.
+- Selective-prediction quick-start in `README.md` showing `aurc`, `eaurc`, and `selective_risk_at_coverage` alongside the panel `loss=` integration.
+- Pre-publish checklist in `docs/RELEASING.md` covering branch hygiene, tests, mypy, build, version bump, CHANGELOG promotion, and TestPyPI dry-run decision.
+
+### Changed
+
+- README Downloads badge swapped from shields.io `pypi/dm` to pepy.tech (total + monthly), linking to the pepy project page.
+- GitHub Actions workflows pinned to current Node-24-compatible major versions (`actions/checkout@v5`, `actions/setup-python@v6`, `actions/upload-artifact@v5`, `actions/download-artifact@v5`) and opted into Node 24 runtime via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` to silence deprecation warnings until upstream actions ship Node-24 declarations.
 
 ## [0.3.0] — 2026-04-30
 
