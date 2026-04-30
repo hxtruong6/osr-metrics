@@ -6,6 +6,13 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-04-30
+
+Selective prediction / risk–coverage support. Adds the canonical AURC
+family alongside the existing OOD/OSR/calibration toolbox so users can
+report a complete selective-prediction picture from cached scores
+without a torch dependency.
+
 ### Added
 
 - New module `osr_metrics.selective` with selective-prediction / risk–coverage metrics: `rc_curve`, `aurc`, `eaurc`, `selective_risk_at_coverage`, `selective_accuracy_at_coverage`, `warn_if_inverted_aurc`. Follows the library's "higher = more OOD" convention; rank-averaged tie handling for sign-symmetric, input-order-independent results. AURC uses the canonical Riemann-sum formulation matching Geifman & El-Yaniv 2017 and standard reference implementations (Galil 2023, Han 2024).
