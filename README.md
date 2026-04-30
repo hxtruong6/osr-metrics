@@ -98,7 +98,8 @@ have to.
 pip install osr-metrics
 ```
 
-Requires Python 3.10+, `numpy`, `scikit-learn`, `scipy`.
+Requires Python 3.10–3.14, `numpy`, `scikit-learn`, `scipy`. CI runs on
+Python 3.10, 3.11, 3.12, 3.13, and 3.14.
 
 ### Development install
 
@@ -163,6 +164,26 @@ out = compute_panel(
 
 The panel infers your setting from input shapes and computes every
 metric whose required inputs are present.
+
+## Selective prediction (risk–coverage)
+
+When you have per-sample losses (e.g. `0/1` for misclassification) and a
+confidence-style ranking score, report AURC and selective risk at a
+chosen coverage:
+
+```python
+from osr_metrics import aurc, eaurc, selective_risk_at_coverage
+
+# Convention: ood_score is "higher = more OOD" (i.e., reject first).
+# If you have a confidence score, pass `-confidence`.
+print(f"AURC:  {aurc(ood_score, loss):.4f}")
+print(f"E-AURC: {eaurc(ood_score, loss):.4f}")
+print(f"Risk@95% coverage: {selective_risk_at_coverage(ood_score, loss, 0.95):.4f}")
+```
+
+`compute_panel(..., loss=loss)` adds these to the publication panel.
+See [`docs/USAGE.md`](docs/USAGE.md) and
+[`docs/PITFALLS.md`](docs/PITFALLS.md) for score-direction guidance.
 
 ## Statistical comparison
 
