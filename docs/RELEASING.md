@@ -3,6 +3,22 @@
 `osr-metrics` releases are tag-driven. Bump the version, push a tag, the
 GitHub Actions `release.yml` workflow does the rest.
 
+## Pre-publish checklist
+
+Run through this before tagging anything. Any "no" → fix before continuing.
+
+- [ ] On `main`, working tree clean (`git status`), local in sync with `origin/main`.
+- [ ] Full suite green: `$PY -m pytest tests/` (no failures, no new warnings beyond the pre-existing sklearn one).
+- [ ] Type check clean: `$PY -m mypy`.
+- [ ] Build + metadata clean: `$PY -m build && $PY -m twine check dist/*`.
+- [ ] `pyproject.toml` `version` bumped (semver: MAJOR breaking / MINOR additive / PATCH fix-only).
+- [ ] `CHANGELOG.md`: `[Unreleased]` block promoted to `[X.Y.Z] — YYYY-MM-DD` with the em-dash format the workflow's awk extractor matches; sections in canonical order (`Added / Changed / Deprecated / Removed / Fixed`).
+- [ ] README capability matrix and module docstrings reflect any new public API.
+- [ ] After bumping `pyproject.toml`, reinstall editable (`$PY -m pip install -e .`) so `tests/test_version.py` sees the new version, then re-run that test.
+- [ ] No tracked planning artifacts (`docs/superpowers/` is gitignored — verify `git status` doesn't show any).
+- [ ] Decided: TestPyPI dry-run first (recommended for any non-trivial release) or straight to PyPI.
+- [ ] Release notes draft in your head: one-paragraph summary you'd put in the GitHub Release body if the workflow's auto-extract from CHANGELOG isn't enough.
+
 ## Versioning
 
 Semantic versioning (MAJOR.MINOR.PATCH). The version lives in
