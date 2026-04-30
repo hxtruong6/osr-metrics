@@ -30,6 +30,7 @@ from .ood import (
     fpr_at_95tpr,
 )
 from .osr import compute_aoscr, compute_aoscr_multiclass
+from .selective import aurc, eaurc, selective_risk_at_coverage
 
 Setting = Literal["auto", "multiclass", "multilabel"]
 
@@ -62,6 +63,7 @@ def compute_panel(
     label_vecs: np.ndarray | None = None,
     label_names: list[str] | None = None,
     held_out_labels: list[str] | None = None,
+    loss: np.ndarray | None = None,
     setting: Setting = "auto",
 ) -> dict[str, Any]:
     """Compute every applicable metric in one call.
@@ -88,6 +90,11 @@ def compute_panel(
         label_names: K label names (multi-label).
         held_out_labels: Labels treated as held-out / unknown
             (multi-label).
+        loss: Per-sample non-negative loss ``[N]`` for selective-prediction
+            metrics (e.g. ``(y != y_pred).astype(float)`` for 0/1
+            misclassification, or NLL / squared error). When provided
+            together with ``scores``, the panel adds ``aurc``, ``eaurc``,
+            and ``selective_risk@95`` to the output.
         setting: ``"auto"`` infers from shapes; ``"multiclass"`` or
             ``"multilabel"`` forces.
 
@@ -168,6 +175,14 @@ def compute_panel(
     ):
         out["fourclass"] = compute_fourclass_metrics(
             scores, label_vecs, label_names, held_out_labels
+        )
+
+    # --- Selective prediction (task-agnostic) ---
+    if loss is not None and scores is not None:
+        out["aurc"] = aurc(scores, loss)
+        out["eaurc"] = eaurc(scores, loss)
+        out["selective_risk@95"] = selective_risk_at_coverage(
+            scores, loss, coverage=0.95
         )
 
     return out

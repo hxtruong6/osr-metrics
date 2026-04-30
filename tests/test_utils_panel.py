@@ -172,3 +172,43 @@ def test_panel_scores_only_no_labels():
     out = compute_panel(scores=np.array([0.1, 0.2, 0.3]))
     assert "auroc" not in out
     assert "aoscr" not in out
+
+
+# --------- T9: selective-prediction (optional loss= parameter) --------- #
+
+
+class TestPanelSelectivePrediction:
+    def _basic_inputs(self, n=100, seed=42):
+        rng = np.random.RandomState(seed)
+        scores = rng.standard_normal(n)
+        ood_labels = rng.binomial(1, 0.3, size=n)
+        loss = rng.binomial(1, 0.2, size=n).astype(float)
+        return scores, ood_labels, loss
+
+    def test_panel_without_loss_unchanged(self):
+        scores, ood_labels, _ = self._basic_inputs()
+        out = compute_panel(scores=scores, ood_labels=ood_labels)
+        for key in ("aurc", "eaurc", "selective_risk@95"):
+            assert key not in out
+
+    def test_panel_with_loss_adds_keys(self):
+        scores, ood_labels, loss = self._basic_inputs()
+        out = compute_panel(scores=scores, ood_labels=ood_labels, loss=loss)
+        assert "aurc" in out
+        assert "eaurc" in out
+        assert "selective_risk@95" in out
+        assert isinstance(out["aurc"], float)
+        assert isinstance(out["eaurc"], float)
+        assert isinstance(out["selective_risk@95"], float)
+
+    def test_panel_loss_without_scores_skips_selective(self):
+        _, ood_labels, loss = self._basic_inputs()
+        out = compute_panel(ood_labels=ood_labels, loss=loss)
+        for key in ("aurc", "eaurc", "selective_risk@95"):
+            assert key not in out
+
+    def test_panel_loss_validation_propagates(self):
+        scores, ood_labels, _ = self._basic_inputs()
+        bad_loss = np.full(scores.shape, -1.0)
+        with pytest.raises(ValueError, match="non-negative"):
+            compute_panel(scores=scores, ood_labels=ood_labels, loss=bad_loss)

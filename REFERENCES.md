@@ -126,6 +126,19 @@ The AUROC/FPR primitives reused inside this module are cited under
 
 ---
 
+## Selective prediction (`osr_metrics/selective.py`)
+
+### `rc_curve`, `aurc`, `selective_*_at_coverage`
+- Geifman, Y. & El-Yaniv, R. (2017). *Selective Classification for Deep Neural Networks.* NeurIPS. [arXiv:1705.08500](https://arxiv.org/abs/1705.08500). — defines the modern selective-classification setup; source for `rc_curve`, `aurc`, `selective_*_at_coverage`.
+
+### `eaurc`
+- Geifman, Y., Uziel, G. & El-Yaniv, R. (2019). *Bias-Reduced Uncertainty Estimation for Deep Neural Classifiers.* ICLR. [arXiv:1805.08206](https://arxiv.org/abs/1805.08206). — origin of E-AURC and the closed-form oracle `r + (1 − r)·ln(1 − r)`.
+
+### Caveat on conflating selective classification with OOD detection
+- Jaeger, P. et al. (2024). *Overcoming Common Flaws in the Evaluation of Selective Classification Systems.* NeurIPS. [arXiv:2407.01032](https://arxiv.org/abs/2407.01032). — modern restatement of the framework and warning about conflating selective classification with OOD detection.
+
+---
+
 ## Project-original metrics
 
 The following metrics have no external paper citation. They were
@@ -302,5 +315,19 @@ Cite this package itself (see `CITATION.cff`) when reporting them.
   title     = {{OpenOOD}: Benchmarking Generalized Out-of-Distribution Detection},
   booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
   year      = {2022},
+}
+
+@inproceedings{Geifman2019,
+  author    = {Geifman, Yonatan and Uziel, Guy and El-Yaniv, Ran},
+  title     = {Bias-Reduced Uncertainty Estimation for Deep Neural Classifiers},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2019},
+}
+
+@inproceedings{Jaeger2024,
+  author    = {Jaeger, Paul F. and others},
+  title     = {Overcoming Common Flaws in the Evaluation of Selective Classification Systems},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2024},
 }
 ```

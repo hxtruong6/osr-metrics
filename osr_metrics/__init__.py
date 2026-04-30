@@ -42,6 +42,14 @@ from .calibration import (
 from .delong import delong_test
 from .panel import compute_panel
 from .utils import as_ood_scores, warn_if_inverted_scores
+from .selective import (
+    aurc,
+    eaurc,
+    rc_curve,
+    selective_accuracy_at_coverage,
+    selective_risk_at_coverage,
+    warn_if_inverted_aurc,
+)
 from .stability import *  # noqa: F401, F403
 
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
@@ -77,6 +85,13 @@ __all__ = [
     "build_fourclass_masks",
     "compute_fourclass_metrics",
     "partition_ood_by_purity",
+    # Selective prediction
+    "rc_curve",
+    "aurc",
+    "eaurc",
+    "selective_risk_at_coverage",
+    "selective_accuracy_at_coverage",
+    "warn_if_inverted_aurc",
     # Calibration
     "expected_calibration_error",
     "expected_calibration_error_multiclass",

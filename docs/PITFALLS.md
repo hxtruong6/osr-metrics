@@ -170,3 +170,27 @@ auroc(scores, y_classes)
 ood_labels = np.isin(y_classes, held_out_class_ids).astype(int)
 auroc(scores, ood_labels)
 ```
+
+## 9. AURC is not an OOD-detection metric
+
+**Bad:**
+
+```python
+# Reporting AURC as if it measured OOD detection performance.
+score = msp_logits  # or any uncertainty score
+loss = (y_true != y_pred).astype(float)  # closed-set 0/1 loss
+aurc_value = aurc(score, loss)
+print(f"OOD detection AURC: {aurc_value:.3f}")  # WRONG framing
+```
+
+AURC measures how well `score` ranks samples by the *closed-set* `loss` — i.e. "does my uncertainty score also identify misclassified samples?" It does not measure OOD detection.
+
+**Good:**
+
+```python
+# Use the right metric for the question being asked.
+auroc_ood = auroc(score, ood_labels)            # OOD detection
+aurc_value = aurc(score, loss)                  # selective classification
+```
+
+If you want a single number that captures both — joint OSR — use `compute_aoscr` instead.

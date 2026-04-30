@@ -156,6 +156,27 @@ Calibrates the threshold on ID-disease at TPR=0.95, then reports the rate at
 which NF (no-finding, healthy) images are rejected by that threshold. Higher
 = better (healthy patients flagged for review rather than auto-classified).
 
+### G. Do you have a per-sample loss and want to evaluate score quality as a ranker?
+
+→ **AURC / E-AURC** (`osr_metrics.aurc`, `osr_metrics.eaurc`).
+
+The selective-prediction family answers: "if I abstain on the most-OOD-looking samples, how does my average loss decrease?" It needs:
+
+- `ood_score` (higher = reject, library convention)
+- `loss` (per-sample non-negative loss; e.g. `(y_true != y_pred).astype(float)`)
+
+Use `rc_curve` for the full curve, `aurc` for the scalar summary,
+`eaurc` for the gap to the optimal ranker, and
+`selective_accuracy_at_coverage` for "accuracy when keeping the most-confident X% of predictions". **AURC measures rank quality on the supplied loss, not OOD detection** — for OOD detection use `auroc`.
+
+| Question | Function |
+|---|---|
+| Full risk–coverage curve | `rc_curve(ood_score, loss)` |
+| Scalar summary — area under the RC curve (lower = better) | `aurc(ood_score, loss)` |
+| Gap to the oracle ranker | `eaurc(ood_score, loss)` |
+| Risk when keeping the most-confident X% | `selective_risk_at_coverage(ood_score, loss, coverage)` |
+| Accuracy when keeping the most-confident X% | `selective_accuracy_at_coverage(ood_score, loss, coverage)` |
+
 ## Common mistakes
 
 See [`PITFALLS.md`](PITFALLS.md) for the full list with bad-vs-good

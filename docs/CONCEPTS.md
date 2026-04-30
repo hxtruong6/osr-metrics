@@ -103,6 +103,18 @@ explicitly; or you can spot it by eye.
 - **Detection methods** — this library provides only metrics. Pair it
   with PyTorch-OOD, OpenOOD, or your own scoring pipeline.
 
+## Selective prediction
+
+A "rank-then-abstain" evaluation regime (El-Yaniv & Wiener 2010; Geifman & El-Yaniv 2017). Given a confidence/uncertainty score per sample, abstain on the highest-uncertainty samples and report performance on the rest.
+
+- **Coverage** — fraction of samples kept (not abstained on).
+- **Selective risk** — mean loss over the kept samples.
+- **Risk–coverage (RC) curve** — selective risk plotted against coverage.
+- **AURC** — area under the RC curve. Lower is better. Depends only on the rank ordering induced by the score, so it is sign-equivalent to the literature's confidence-based formulation.
+- **E-AURC** — excess AURC over the optimal (oracle-ranked) baseline. For binary 0/1 loss the asymptotic baseline is `r + (1 − r)·ln(1 − r)` with `r = mean(loss)` (Geifman, Uziel & El-Yaniv 2019); we compute it empirically as `aurc(loss, loss)` so the comparison is consistent at finite N.
+
+**Caveat (Jaeger et al. 2024):** AURC measures rank quality on the *supplied loss*. If the loss is closed-set misclassification, AURC tells you nothing about OOD detection per se — use `auroc` for that.
+
 ## Further reading
 
 The full bibliographic source list is in
