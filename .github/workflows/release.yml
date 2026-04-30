@@ -16,10 +16,10 @@ jobs:
     outputs:
       is-stable: ${{ steps.classify.outputs.is-stable }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -64,7 +64,7 @@ jobs:
         run: twine check dist/*
 
       - name: Upload artifact for publish jobs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist
           path: dist/
@@ -80,7 +80,7 @@ jobs:
       id-token: write
     steps:
       - name: Download dist artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: dist
           path: dist/
@@ -100,7 +100,7 @@ jobs:
       id-token: write
     steps:
       - name: Download dist artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: dist
           path: dist/
@@ -116,7 +116,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Extract changelog section for this version
         id: notes
@@ -137,7 +137,7 @@ jobs:
           cat release_notes.md
 
       - name: Download dist artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: dist
           path: dist/
