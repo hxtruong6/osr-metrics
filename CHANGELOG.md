@@ -6,6 +6,10 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Officially support Python 3.13 and 3.14: trove classifiers and CI matrix entries. No code changes required — the library is pure-numpy/scipy/sklearn and all dependencies ship wheels for both versions.
+
 ## [0.3.0] — 2026-04-30
 
 Selective prediction / risk–coverage support. Adds the canonical AURC
