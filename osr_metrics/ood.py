@@ -314,3 +314,106 @@ def bootstrap_ci(
     lower = float(np.percentile(valid, 100 * alpha))
     upper = float(np.percentile(valid, 100 * (1 - alpha)))
     return lower, float(np.mean(valid)), upper
+
+
+def paired_bootstrap_diff(
+    metric_fn,
+    scores_a: np.ndarray,
+    scores_b: np.ndarray,
+    labels: np.ndarray,
+    n_bootstrap: int = 1000,
+    ci: float = 0.95,
+    seed: int = 0,
+    stratify: bool = False,
+) -> tuple[float, float, float, float]:
+    """Paired bootstrap CI on ``metric(scores_a) - metric(scores_b)``.
+
+    | Applies to | Task                     |
+    |------------|--------------------------|
+    | Any        | Statistical comparison   |
+
+    Method ``a`` and method ``b`` are evaluated on the **same** bootstrap
+    resample at each replicate (paired design), removing variance
+    attributable to the sampled instances and yielding a tighter CI on
+    the delta than two independent bootstraps.
+
+    The two-sided p-value is computed against the null
+    ``H_0: metric(a) = metric(b)`` as
+    ``2 * min(P(diff >= 0), P(diff <= 0))`` over the bootstrap
+    distribution. With ``n_bootstrap = 1000`` the smallest resolvable
+    p-value is ``2 / 1000 = 0.002``; raise ``n_bootstrap`` for
+    smaller-p reporting.
+
+    Use this for non-AUROC paired comparisons (macro-F1, AUPR, AOSCR,
+    AURC, AML-OSCR, …). For AUROC specifically, prefer ``delong_test``
+    which is the analytic asymptotic test.
+
+    Args:
+        metric_fn: callable ``f(scores, labels) -> float``.
+        scores_a: per-sample scores from method ``a``, shape ``[N]``.
+        scores_b: per-sample scores from method ``b``, shape ``[N]``.
+        labels: per-sample labels, shape ``[N]``.
+        n_bootstrap: number of bootstrap resamples.
+        ci: confidence level in ``(0, 1)``.
+        seed: RNG seed.
+        stratify: if ``True``, resample positives and negatives
+            separately to preserve class proportion (recommended on
+            rare-positive problems).
+
+    Returns:
+        ``(delta_mean, lower, upper, p_two_sided)``. ``delta_mean`` is the
+        mean of ``metric(a) - metric(b)`` over bootstrap replicates;
+        ``(lower, upper)`` are the percentile CI bounds. NaN replicates
+        (either side) are dropped before percentile / mean / p-value
+        calculation.
+    """
+    scores_a = np.asarray(scores_a)
+    scores_b = np.asarray(scores_b)
+    labels_arr = np.asarray(labels)
+    n = scores_a.shape[0]
+    if scores_b.shape[0] != n or labels_arr.shape[0] != n:
+        raise ValueError(
+            "paired_bootstrap_diff: scores_a, scores_b, labels must have "
+            f"the same length; got {scores_a.shape[0]}, {scores_b.shape[0]}, "
+            f"{labels_arr.shape[0]}"
+        )
+
+    rng = np.random.RandomState(seed)
+    if stratify:
+        pos_idx = np.where(labels_arr == 1)[0]
+        neg_idx = np.where(labels_arr == 0)[0]
+        n_pos, n_neg = len(pos_idx), len(neg_idx)
+        if n_pos == 0 or n_neg == 0:
+            raise ValueError("stratify=True requires both classes to be present")
+
+    diffs = np.empty(n_bootstrap, dtype=float)
+    for b in range(n_bootstrap):
+        idx: np.ndarray
+        if stratify:
+            idx = np.concatenate([
+                rng.choice(pos_idx, size=n_pos, replace=True),
+                rng.choice(neg_idx, size=n_neg, replace=True),
+            ])
+        else:
+            idx = np.asarray(rng.choice(n, size=n, replace=True))
+        try:
+            va = float(metric_fn(scores_a[idx], labels_arr[idx]))
+            vb = float(metric_fn(scores_b[idx], labels_arr[idx]))
+            diffs[b] = va - vb
+        except Exception:
+            diffs[b] = float("nan")
+
+    valid = diffs[~np.isnan(diffs)]
+    if valid.size == 0:
+        return float("nan"), float("nan"), float("nan"), float("nan")
+
+    alpha = (1 - ci) / 2
+    lower = float(np.percentile(valid, 100 * alpha))
+    upper = float(np.percentile(valid, 100 * (1 - alpha)))
+    delta_mean = float(np.mean(valid))
+
+    p_ge = float((valid >= 0).sum()) / valid.size
+    p_le = float((valid <= 0).sum()) / valid.size
+    p_two_sided = float(min(1.0, 2.0 * min(p_ge, p_le)))
+
+    return delta_mean, lower, upper, p_two_sided

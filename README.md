@@ -24,17 +24,20 @@ produced.
 
 ## What's inside
 
+Within each group, entries are listed alphabetically.
+
 | Group | Metrics |
 |---|---|
-| OOD detection | `auroc`, `fpr_at_tpr`, `fpr_at_95tpr`, `aupr_in`, `aupr_out` |
-| Open-Set Recognition | `compute_aoscr` (canonical Dhamija/Vaze), `compute_aoscr_multiclass`, `oscr_curve`, `compute_nf_rejection_at_tpr` |
-| Multi-class (single-label) classification | `top1_accuracy`, `macro_f1_multiclass`, `balanced_accuracy` |
-| Multi-label classification | `macro_auprc`, `macro_auprc_id_labels`, `macro_f1_with_thresholds`, `per_label_auprc`, `f1_per_label` |
+| Calibration | `brier_score`, `brier_score_multiclass`, `expected_calibration_error`, `expected_calibration_error_multiclass` |
 | Four-class OSR partitioning | `build_fourclass_masks`, `compute_fourclass_metrics`, `partition_ood_by_purity` |
-| Calibration | `expected_calibration_error`, `expected_calibration_error_multiclass`, `brier_score`, `brier_score_multiclass` |
-| Statistical comparison | `delong_test` (O(n log n) rank-based), `bootstrap_ci` (with optional stratification) |
-| Selective prediction | `rc_curve`, `aurc`, `eaurc`, `selective_risk_at_coverage`, `selective_accuracy_at_coverage`, `warn_if_inverted_aurc` |
-| Utilities | `as_ood_scores` (score-direction adapter), `warn_if_inverted_scores`, `compute_panel` (one-call publication panel) |
+| Multi-class (single-label) classification | `balanced_accuracy`, `macro_f1_multiclass`, `top1_accuracy` |
+| Multi-label classification | `f1_per_label`, `macro_auprc`, `macro_auprc_id_labels`, `macro_f1_with_thresholds`, `per_label_auprc` |
+| OOD detection | `aupr_in`, `aupr_out`, `auroc`, `fpr_at_95tpr`, `fpr_at_tpr` |
+| Open-Set Multi-Label Classification (OS-MLC) | `aml_oscr_curve`, `compute_aml_oscr` (multi-label macro-F1 OSCR), `compute_rc_macro_f1` (rejection-contagion ID macro-F1 on mixed-novelty images, with contagion delta), `per_novel_discovery_table` (per-novel-label discovery, stratified by co-novel count and pure/mixed regime) |
+| Open-Set Recognition | `compute_aoscr` (canonical Dhamija/Vaze), `compute_aoscr_multiclass`, `compute_nf_rejection_at_tpr`, `oscr_curve` |
+| Selective prediction | `aurc`, `eaurc`, `rc_curve`, `selective_accuracy_at_coverage`, `selective_risk_at_coverage`, `warn_if_inverted_aurc` |
+| Statistical comparison | `bootstrap_ci` (with optional stratification), `delong_test` (O(n log n) rank-based), `paired_bootstrap_diff` (CI + two-sided p on `metric(a) − metric(b)` with shared resamples) |
+| Utilities | `as_ood_scores` (score-direction adapter), `compute_panel` (one-call publication panel), `warn_if_inverted_scores` |
 
 All functions take plain `numpy` arrays and return scalars or simple
 dictionaries — no PyTorch, TensorFlow, or framework lock-in.
@@ -55,32 +58,39 @@ streaming-approximate metrics are out of scope.
 
 Read across to find your setting; functions marked ✅ apply directly.
 ⚠ = applies with a small adapter (see footnote). ❌ = not applicable.
+Rows are sorted alphabetically by primary function name.
 
 | Function | Multi-class<br>(single-label) | Multi-label | Pure OOD<br>detection | OSR<br>(classify+reject) | Calibration | Statistical<br>test |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `auroc` | ✅ | ✅ | ✅ | — | — | — |
-| `fpr_at_tpr` / `fpr_at_95tpr` | ✅ | ✅ | ✅ | — | — | — |
+| `aml_oscr_curve` / `compute_aml_oscr` | ❌ | ✅ | — | ✅ | — | — |
+| `as_ood_scores` / `warn_if_inverted_scores` | ✅ | ✅ | ✅ | ✅ | — | — |
 | `aupr_in` / `aupr_out` | ✅ | ✅ | ✅ | — | — | — |
+| `auroc` | ✅ | ✅ | ✅ | — | — | — |
+| `balanced_accuracy` | ✅ | ❌ | — | — | — | — |
+| `bootstrap_ci` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `brier_score` | ❌ | ✅ | — | — | ✅ | — |
+| `brier_score_multiclass` | ✅ | ❌ | — | — | ✅ | — |
+| `build_fourclass_masks` / `compute_fourclass_metrics` | ❌ | ✅ | — | ✅ ² | — | — |
 | `compute_aoscr` / `oscr_curve` | ✅ | ⚠ ¹ | — | ✅ | — | — |
 | `compute_aoscr_multiclass` | ✅ | ❌ | — | ✅ | — | — |
 | `compute_nf_rejection_at_tpr` | ❌ | ✅ | — | ✅ ² | — | — |
-| `partition_ood_by_purity` | ❌ | ✅ | — | ✅ ² | — | — |
-| `build_fourclass_masks` / `compute_fourclass_metrics` | ❌ | ✅ | — | ✅ ² | — | — |
-| `top1_accuracy` / `macro_f1_multiclass` / `balanced_accuracy` | ✅ | ❌ | — | — | — | — |
-| `macro_auprc` / `macro_auprc_id_labels` | ❌ | ✅ | — | — | — | — |
-| `per_label_auprc` / `f1_per_label` | ❌ | ✅ | — | — | — | — |
-| `macro_f1_with_thresholds` | ❌ | ✅ | — | — | — | — |
+| `compute_panel` | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| `compute_rc_macro_f1` | ❌ | ✅ | — | ✅ ² | — | — |
+| `delong_test` | ✅ | ✅ | ✅ | ✅ | — | ✅ |
 | `expected_calibration_error` | ❌ | ✅ | — | — | ✅ | — |
 | `expected_calibration_error_multiclass` | ✅ | ❌ | — | — | ✅ | — |
-| `brier_score` | ❌ | ✅ | — | — | ✅ | — |
-| `brier_score_multiclass` | ✅ | ❌ | — | — | ✅ | — |
-| `delong_test` | ✅ | ✅ | ✅ | ✅ | — | ✅ |
-| `bootstrap_ci` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `f1_per_label` / `per_label_auprc` | ❌ | ✅ | — | — | — | — |
+| `fpr_at_tpr` / `fpr_at_95tpr` | ✅ | ✅ | ✅ | — | — | — |
+| `macro_auprc` / `macro_auprc_id_labels` | ❌ | ✅ | — | — | — | — |
+| `macro_f1_multiclass` | ✅ | ❌ | — | — | — | — |
+| `macro_f1_with_thresholds` | ❌ | ✅ | — | — | — | — |
+| `paired_bootstrap_diff` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `partition_ood_by_purity` | ❌ | ✅ | — | ✅ ² | — | — |
+| `per_novel_discovery_table` | ❌ | ✅ | — | ✅ ² | — | — |
 | `rc_curve` / `aurc` / `eaurc` | ✅ | ✅ | — | — | — | — |
-| `selective_risk_at_coverage` / `selective_accuracy_at_coverage` | ✅ | ✅ | — | — | — | — |
+| `selective_accuracy_at_coverage` / `selective_risk_at_coverage` | ✅ | ✅ | — | — | — | — |
+| `top1_accuracy` | ✅ | ❌ | — | — | — | — |
 | `warn_if_inverted_aurc` | ✅ | ✅ | — | — | — | — |
-| `as_ood_scores` / `warn_if_inverted_scores` | ✅ | ✅ | ✅ | ✅ | — | — |
-| `compute_panel` | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 
 ¹ Multi-label OSCR/AOSCR: pass an exact-match indicator
 (`1` if all labels predicted correctly, else `0`) as `class_predictions`
@@ -239,6 +249,7 @@ Five AUROC pairings answer different questions:
 ## Documentation
 
 - [`docs/CONCEPTS.md`](docs/CONCEPTS.md) — glossary: ID/OOD, OSR, semantic vs covariate shift, near vs far OOD, multi-class vs multi-label.
+- [`docs/METRICS.md`](docs/METRICS.md) — alphabetical metric reference: meaning, range, when to report, when not to.
 - [`docs/USAGE.md`](docs/USAGE.md) — "which metric should I use?" decision tree.
 - [`docs/PITFALLS.md`](docs/PITFALLS.md) — the eight most common mistakes, with bad-vs-good code side by side.
 - [`docs/EXAMPLES.md`](docs/EXAMPLES.md) — end-to-end runnable examples

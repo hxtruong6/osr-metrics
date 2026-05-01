@@ -6,6 +6,19 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-01
+
+OS-MLC release: four new metrics for Open-Set Multi-Label Classification — multi-label OSCR, rejection-contagion macro-F1, per-novel-label discovery, paired bootstrap diff — plus a new alphabetical metric reference doc.
+
+### Added
+
+- Open-Set Multi-Label Classification (OS-MLC) metric set:
+  - `aml_oscr_curve` / `compute_aml_oscr` — multi-label macro-F1 analogue of OSCR. Sweeps the novelty threshold and reports macro-F1 over `K` known labels on the accepted-ID subset vs novelty-FPR. `compute_aml_oscr` accepts `fpr_max` to integrate only the deployment-relevant high-rejection regime. O(N·K log N).
+  - `compute_rc_macro_f1` — rejection-contagion macro-F1: macro-F1 over known labels restricted to mixed-novelty images, with an optional ID-only baseline and contagion delta `Δ = macro_f1(ID-only) − macro_f1(mixed)`.
+  - `per_novel_discovery_table` — per-novel-label discovery rate at a fixed novelty threshold, stratified by co-novel-label count (`alone`, `one_co`, `two_plus_co`) and pure/mixed-novelty regime.
+- `paired_bootstrap_diff` — paired bootstrap CI and two-sided p-value on `metric(scores_a) − metric(scores_b)` using shared resample indices. For non-AUROC paired comparisons (macro-F1, AUPR, AOSCR, AML-OSCR, AURC); use `delong_test` for AUROC.
+- `docs/METRICS.md` — alphabetical metric reference. Interpretation-first: one entry per public function with what the number means, range / direction, when to report, and when not to. Complements the task-first decision tree in `docs/USAGE.md`.
+
 ## [0.4.0] — 2026-05-01
 
 Performance release: AOSCR/OSCR rewritten as O(N log N), `bootstrap_ci` gains optional threading.

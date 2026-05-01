@@ -9,6 +9,7 @@ evaluation, use ``sklearn.metrics.accuracy_score`` /
 from __future__ import annotations
 
 import warnings
+from math import isnan as math_isnan
 
 import numpy as np
 from sklearn.metrics import average_precision_score, f1_score
@@ -116,6 +117,101 @@ def macro_f1_with_thresholds(
     for k in range(K):
         preds[:, k] = (probs[:, k] >= thresholds[k]).astype(int)
     return float(f1_score(labels, preds, average="macro", zero_division=0))
+
+
+def compute_rc_macro_f1(
+    probs_known: np.ndarray,
+    labels_known: np.ndarray,
+    thresholds: list[float] | np.ndarray,
+    mixed_mask: np.ndarray,
+    id_only_mask: np.ndarray | None = None,
+) -> dict:
+    """Rejection-contagion macro-F1 on mixed-novelty images.
+
+    | Applies to   | Task                                       |
+    |--------------|--------------------------------------------|
+    | Multi-label  | OS-MLC robustness (Regime B contagion)     |
+
+    On mixed-novelty images (≥1 known label AND ≥1 novel label
+    co-positive), measures whether the presence of a co-occurring
+    novel label degrades prediction of the known labels. Computed as
+    macro-F1 over the *K* known labels using only their ground-truth
+    columns; the novel-label columns are absent from both ``labels_known``
+    and ``probs_known`` by construction.
+
+    If ``id_only_mask`` is provided, also reports the matching ID-only
+    macro-F1 baseline and the **contagion penalty**
+    ``delta = macro_f1_id_only - macro_f1_mixed`` (positive ⇒ degradation
+    on contaminated images).
+
+    Args:
+        probs_known: per-label probabilities over the *K* known labels,
+            shape ``[N, K]``.
+        labels_known: multi-hot ground truth over the *K* known labels,
+            shape ``[N, K]``.
+        thresholds: per-label decision thresholds, length ``K``.
+        mixed_mask: boolean mask, shape ``[N]``. ``True`` for
+            mixed-novelty images.
+        id_only_mask: optional boolean mask, shape ``[N]``. ``True`` for
+            ID-only images (no novel labels positive). If given, the
+            contagion delta is included in the output.
+
+    Returns:
+        ``{"macro_f1_mixed": float, "n_mixed": int, ...}``. When
+        ``id_only_mask`` is given, also includes
+        ``"macro_f1_id_only"``, ``"n_id_only"``, and ``"contagion_delta"``.
+        ``macro_f1_*`` is ``nan`` if the corresponding subset is empty.
+    """
+    probs_known = np.asarray(probs_known, dtype=float)
+    labels_known = np.asarray(labels_known).astype(int)
+    thresholds = np.asarray(thresholds, dtype=float)
+    mixed_mask = np.asarray(mixed_mask).astype(bool)
+
+    if probs_known.shape != labels_known.shape:
+        raise ValueError(
+            "compute_rc_macro_f1: probs_known and labels_known must have "
+            f"the same shape; got {probs_known.shape} vs {labels_known.shape}"
+        )
+    K = probs_known.shape[1]
+    if thresholds.shape != (K,):
+        raise ValueError(
+            f"compute_rc_macro_f1: thresholds must have shape [K]=({K},); "
+            f"got {thresholds.shape}"
+        )
+    if mixed_mask.shape != (probs_known.shape[0],):
+        raise ValueError(
+            "compute_rc_macro_f1: mixed_mask must have shape [N]; "
+            f"got {mixed_mask.shape}"
+        )
+
+    def _macro_f1(p_sub: np.ndarray, y_sub: np.ndarray) -> float:
+        if p_sub.shape[0] == 0:
+            return float("nan")
+        preds_sub = (p_sub >= thresholds[None, :]).astype(int)
+        return float(
+            f1_score(y_sub, preds_sub, average="macro", zero_division=0)
+        )
+
+    out: dict = {
+        "macro_f1_mixed": _macro_f1(probs_known[mixed_mask], labels_known[mixed_mask]),
+        "n_mixed": int(mixed_mask.sum()),
+    }
+
+    if id_only_mask is not None:
+        id_only_mask = np.asarray(id_only_mask).astype(bool)
+        if id_only_mask.shape != (probs_known.shape[0],):
+            raise ValueError(
+                "compute_rc_macro_f1: id_only_mask must have shape [N]; "
+                f"got {id_only_mask.shape}"
+            )
+        macro_id = _macro_f1(probs_known[id_only_mask], labels_known[id_only_mask])
+        out["macro_f1_id_only"] = macro_id
+        out["n_id_only"] = int(id_only_mask.sum())
+        if math_isnan(macro_id) or math_isnan(out["macro_f1_mixed"]):
+            out["contagion_delta"] = float("nan")
+        else:
+            out["contagion_delta"] = macro_id - out["macro_f1_mixed"]
+    return out
 
 
 def f1_per_label(

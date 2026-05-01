@@ -13,14 +13,19 @@ from .ood import (
     fpr_at_95tpr,
     fpr_at_tpr,
     oscr_curve,
+    paired_bootstrap_diff,
     partition_ood_by_purity,
 )
 from .osr import (
+    aml_oscr_curve,
+    compute_aml_oscr,
     compute_aoscr,
     compute_aoscr_multiclass,
     compute_nf_rejection_at_tpr,
+    per_novel_discovery_table,
 )
 from .classification import (
+    compute_rc_macro_f1,
     f1_per_label,
     macro_auprc,
     macro_auprc_id_labels,
@@ -60,46 +65,54 @@ except PackageNotFoundError:  # not installed (e.g. running from source tree wit
     __version__ = "0.0.0+unknown"
 
 __all__ = [
+    # Entries are grouped by category and sorted alphabetically within each
+    # group. Match the README capability matrix and docs/METRICS.md ordering.
     # OOD detection
-    "auroc",
     "aupr_in",
     "aupr_out",
-    "fpr_at_tpr",
+    "auroc",
     "fpr_at_95tpr",
+    "fpr_at_tpr",
     # Open-Set Recognition
     "compute_aoscr",
     "compute_aoscr_multiclass",
     "compute_nf_rejection_at_tpr",
     "oscr_curve",
+    # Open-Set Multi-Label Classification (OS-MLC)
+    "aml_oscr_curve",
+    "compute_aml_oscr",
+    "compute_rc_macro_f1",
+    "per_novel_discovery_table",
     # Multi-label classification
+    "f1_per_label",
     "macro_auprc",
     "macro_auprc_id_labels",
     "macro_f1_with_thresholds",
     "per_label_auprc",
-    "f1_per_label",
     # Multi-class (single-label) classification
-    "top1_accuracy",
-    "macro_f1_multiclass",
     "balanced_accuracy",
+    "macro_f1_multiclass",
+    "top1_accuracy",
     # Four-class partition
     "build_fourclass_masks",
     "compute_fourclass_metrics",
     "partition_ood_by_purity",
     # Selective prediction
-    "rc_curve",
     "aurc",
     "eaurc",
-    "selective_risk_at_coverage",
+    "rc_curve",
     "selective_accuracy_at_coverage",
+    "selective_risk_at_coverage",
     "warn_if_inverted_aurc",
     # Calibration
-    "expected_calibration_error",
-    "expected_calibration_error_multiclass",
     "brier_score",
     "brier_score_multiclass",
+    "expected_calibration_error",
+    "expected_calibration_error_multiclass",
     # Statistical comparison
-    "delong_test",
     "bootstrap_ci",
+    "delong_test",
+    "paired_bootstrap_diff",
     # Utilities
     "as_ood_scores",
     "warn_if_inverted_scores",
