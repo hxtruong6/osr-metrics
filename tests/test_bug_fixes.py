@@ -107,3 +107,83 @@ def test_bootstrap_ci_unstratified_still_works():
     scores = rng.normal(loc=labels * 0.5, scale=1.0)
     lo, mean, hi = bootstrap_ci(scores, labels, auroc, n_bootstrap=200, seed=0)
     assert lo <= mean <= hi
+
+
+def test_bootstrap_ci_n_jobs_bit_exact():
+    rng = np.random.default_rng(0)
+    labels = rng.integers(0, 2, 500)
+    scores = rng.normal(loc=labels * 0.5, scale=1.0)
+    serial = bootstrap_ci(scores, labels, auroc, n_bootstrap=200, seed=42, n_jobs=1)
+    parallel = bootstrap_ci(scores, labels, auroc, n_bootstrap=200, seed=42, n_jobs=4)
+    assert serial == parallel
+
+
+def test_bootstrap_ci_n_jobs_bit_exact_stratified():
+    rng = np.random.default_rng(0)
+    n_id, n_ood = 980, 20
+    labels = np.concatenate([np.zeros(n_id), np.ones(n_ood)])
+    scores = np.concatenate([rng.normal(0, 1, n_id), rng.normal(0.8, 1, n_ood)])
+    serial = bootstrap_ci(
+        scores, labels, auroc, n_bootstrap=100, seed=7, stratify=True, n_jobs=1
+    )
+    parallel = bootstrap_ci(
+        scores, labels, auroc, n_bootstrap=100, seed=7, stratify=True, n_jobs=4
+    )
+    assert serial == parallel
+
+
+def test_bootstrap_ci_n_jobs_minus_one_runs():
+    rng = np.random.default_rng(0)
+    labels = rng.integers(0, 2, 200)
+    scores = rng.normal(loc=labels * 0.5, scale=1.0)
+    lo, mean, hi = bootstrap_ci(
+        scores, labels, auroc, n_bootstrap=50, seed=0, n_jobs=-1
+    )
+    assert lo <= mean <= hi
+    assert not np.isnan(mean)
+
+
+def test_bootstrap_ci_n_jobs_oversubscribe_clamped():
+    rng = np.random.default_rng(0)
+    labels = rng.integers(0, 2, 100)
+    scores = rng.normal(loc=labels * 0.5, scale=1.0)
+    serial = bootstrap_ci(scores, labels, auroc, n_bootstrap=8, seed=3, n_jobs=1)
+    huge = bootstrap_ci(scores, labels, auroc, n_bootstrap=8, seed=3, n_jobs=10_000)
+    assert serial == huge
+
+
+def test_bootstrap_ci_n_jobs_clamp_values(monkeypatch):
+    import os as _os
+
+    from osr_metrics import ood as ood_mod
+
+    captured: list[int | None] = []
+    RealTPE = ood_mod.ThreadPoolExecutor
+
+    class SpyTPE(RealTPE):  # type: ignore[misc, valid-type]
+        def __init__(self, max_workers=None, *a, **kw):
+            captured.append(max_workers)
+            super().__init__(max_workers=max_workers, *a, **kw)
+
+    monkeypatch.setattr(ood_mod, "ThreadPoolExecutor", SpyTPE)
+
+    rng = np.random.default_rng(0)
+    labels = rng.integers(0, 2, 100)
+    scores = rng.normal(loc=labels * 0.5, scale=1.0)
+    cpu = _os.cpu_count() or 1
+
+    bootstrap_ci(scores, labels, auroc, n_bootstrap=10, seed=0, n_jobs=1)
+    assert captured == []  # serial path skips the executor
+
+    if cpu >= 2:
+        bootstrap_ci(scores, labels, auroc, n_bootstrap=100, seed=0, n_jobs=2)
+        assert captured[-1] == 2
+
+    bootstrap_ci(scores, labels, auroc, n_bootstrap=100, seed=0, n_jobs=10_000)
+    assert captured[-1] == min(cpu, 100)
+
+    bootstrap_ci(scores, labels, auroc, n_bootstrap=2, seed=0, n_jobs=10_000)
+    assert captured[-1] == min(cpu, 2)
+
+    bootstrap_ci(scores, labels, auroc, n_bootstrap=100, seed=0, n_jobs=-1)
+    assert captured[-1] == min(cpu, 100)

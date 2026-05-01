@@ -2,6 +2,7 @@
 import numpy as np
 import pytest
 
+from osr_metrics import oscr_curve
 from osr_metrics.osr import compute_aoscr, compute_nf_rejection_at_tpr
 
 
@@ -24,7 +25,8 @@ def test_aoscr_perfect_classifier():
     truth = np.concatenate([np.ones(n_id), np.ones(n_ood)]).astype(int)
 
     aoscr = compute_aoscr(scores, ood_labels, preds, truth)
-    assert aoscr == pytest.approx(1.0, abs=1e-3)
+    # Exact implementation hits 1.0 to floating-point noise (no grid bias).
+    assert aoscr == pytest.approx(1.0, abs=1e-12)
 
 
 def test_aoscr_random_classifier():
@@ -62,6 +64,62 @@ def test_aoscr_realistic_midrange():
 
     aoscr = compute_aoscr(scores, ood_labels, preds, truth)
     assert 0.45 < aoscr < 0.85
+
+
+# --------------------------------------------------------------------------
+# Vectorized AOSCR
+# --------------------------------------------------------------------------
+
+def test_aoscr_n_thresholds_deprecated():
+    rng = np.random.default_rng(0)
+    n = 200
+    scores = rng.normal(size=n)
+    ood_labels = rng.integers(0, 2, n)
+    preds = rng.integers(0, 5, n)
+    truth = rng.integers(0, 5, n)
+
+    with pytest.warns(DeprecationWarning, match="n_thresholds"):
+        compute_aoscr(scores, ood_labels, preds, truth, n_thresholds=500)
+
+
+def test_oscr_curve_n_thresholds_deprecated():
+    rng = np.random.default_rng(0)
+    n = 200
+    scores = rng.normal(size=n)
+    ood_labels = rng.integers(0, 2, n)
+    cls_correct = rng.integers(0, 2, n)
+
+    with pytest.warns(DeprecationWarning, match="n_thresholds"):
+        oscr_curve(scores, ood_labels, cls_correct, n_thresholds=500)
+
+
+def test_oscr_curve_one_point_per_unique_score():
+    rng = np.random.default_rng(1)
+    n = 600
+    scores = rng.normal(size=n)  # continuous → all unique
+    ood_labels = rng.integers(0, 2, n)
+    cls_correct = rng.integers(0, 2, n)
+
+    fpr, ccr, aoscr = oscr_curve(scores, ood_labels, cls_correct)
+    assert fpr.shape == (n + 1,)
+    assert ccr.shape == (n + 1,)
+    assert fpr[0] == 0.0 and ccr[0] == 0.0
+    assert fpr[-1] == pytest.approx(1.0, abs=1e-12)
+    assert 0.0 <= aoscr <= 1.0
+
+
+def test_aoscr_invariant_to_score_ties():
+    rng = np.random.default_rng(2)
+    n = 400
+    scores = np.round(rng.normal(size=n), 1)  # force ties
+    ood_labels = rng.integers(0, 2, n)
+    preds = rng.integers(0, 3, n)
+    truth = rng.integers(0, 3, n)
+
+    a1 = compute_aoscr(scores, ood_labels, preds, truth)
+    perm = rng.permutation(n)
+    a2 = compute_aoscr(scores[perm], ood_labels[perm], preds[perm], truth[perm])
+    assert a1 == pytest.approx(a2, abs=1e-12)
 
 
 # --------------------------------------------------------------------------

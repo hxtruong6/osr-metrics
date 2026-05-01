@@ -46,6 +46,11 @@ far-OOD): novel class labels appear at test time. Covariate shift
 (domain generalization), regression OOD, and continual / open-world
 learning are **out of scope**.
 
+**Practical scale.** Pure-numpy and in-core: comfortable up to
+N ≈ 10⁶–10⁷ on a 32 GB machine. For N ≳ 10⁸, subsample to ~10⁶
+(AUROC error ≲ 10⁻³ by Hoeffding) — out-of-core / GPU /
+streaming-approximate metrics are out of scope.
+
 ## Capability matrix — which function for which setting?
 
 Read across to find your setting; functions marked ✅ apply directly.

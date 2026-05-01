@@ -28,7 +28,54 @@ Two metrics are implemented here:
 """
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
+
+
+def _oscr_curve_points(
+    scores: np.ndarray,
+    ood_labels: np.ndarray,
+    cls_correct: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Exact OSCR curve via sort + cumulative counts.
+
+    Returns ``(fpr, ccr, aoscr)`` with one point per unique score plus
+    a ``(0, 0)`` anchor. Tied scores collapse to the end of each run, so
+    the curve is invariant to input order.
+    """
+    scores = np.asarray(scores, dtype=float)
+    ood_labels = np.asarray(ood_labels).astype(int)
+    cls_correct = np.asarray(cls_correct).astype(int)
+
+    id_mask = ood_labels == 0
+    ood_mask = ood_labels == 1
+    n_id = int(id_mask.sum())
+    n_ood = int(ood_mask.sum())
+
+    if n_id == 0 or n_ood == 0:
+        return np.array([0.0, 1.0]), np.array([0.0, 0.0]), 0.0
+    if scores.min() == scores.max():
+        return np.array([0.0, 1.0]), np.array([0.0, 0.0]), 0.0
+
+    order = np.argsort(scores, kind="stable")
+    s_sorted = scores[order]
+    is_id_correct = (id_mask & (cls_correct == 1)).astype(np.int64)[order]
+    is_ood = ood_mask.astype(np.int64)[order]
+
+    cum_ccr = np.cumsum(is_id_correct) / n_id
+    cum_fpr = np.cumsum(is_ood) / n_ood
+
+    n = s_sorted.size
+    last_of_run = np.empty(n, dtype=bool)
+    last_of_run[:-1] = s_sorted[1:] != s_sorted[:-1]
+    last_of_run[-1] = True
+
+    fpr = np.concatenate(([0.0], cum_fpr[last_of_run]))
+    ccr = np.concatenate(([0.0], cum_ccr[last_of_run]))
+
+    _trapz = getattr(np, "trapezoid", None) or np.trapz  # type: ignore[attr-defined]
+    return fpr, ccr, float(_trapz(ccr, fpr))
 
 
 def compute_aoscr(
@@ -36,7 +83,7 @@ def compute_aoscr(
     ood_labels: np.ndarray,
     class_predictions: np.ndarray,
     true_classes: np.ndarray,
-    n_thresholds: int = 1000,
+    n_thresholds: int | None = None,
 ) -> float:
     """Area under the Open-Set Classification Rate (OSCR) curve.
 
@@ -70,57 +117,25 @@ def compute_aoscr(
             ``true_classes`` of all-ones; equivalently, callers may collapse
             multi-label predictions to a single "exact-match" indicator.
         true_classes: Per-sample ground-truth closed-set class, shape ``[N]``.
-        n_thresholds: Number of threshold steps for the curve.
+        n_thresholds: Deprecated and ignored. The implementation is now
+            exact at every unique score. Passing it emits a warning.
 
     Returns:
         AOSCR in ``[0, 1]``.  Higher is better.  Returns ``0.0`` if either
         the ID or OOD class is empty.
     """
+    if n_thresholds is not None:
+        warnings.warn(
+            "`n_thresholds` is deprecated and ignored; remove the argument.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     scores = np.asarray(scores, dtype=float)
-    ood_labels = np.asarray(ood_labels).astype(int)
     class_predictions = np.asarray(class_predictions)
     true_classes = np.asarray(true_classes)
-
-    id_mask = ood_labels == 0
-    ood_mask = ood_labels == 1
-    n_id = int(id_mask.sum())
-    n_ood = int(ood_mask.sum())
-
-    if n_id == 0 or n_ood == 0:
-        return 0.0
-
     cls_correct = (class_predictions == true_classes).astype(int)
-
-    # Build threshold grid over the full score range; pad ends so the curve
-    # spans FPR = 0 (tau = +inf -> accept nothing) and FPR = 1 (tau = -inf -> accept all).
-    lo, hi = float(scores.min()), float(scores.max())
-    if lo == hi:
-        # Degenerate: every sample has the same score.  Curve is a single point.
-        return 0.0
-    thresholds = np.linspace(lo, hi, n_thresholds)
-
-    fpr_list = np.empty(n_thresholds, dtype=float)
-    ccr_list = np.empty(n_thresholds, dtype=float)
-
-    id_scores = scores[id_mask]
-    id_correct = cls_correct[id_mask]
-    ood_scores = scores[ood_mask]
-
-    for i, tau in enumerate(thresholds):
-        # Accepted = score <= tau.
-        id_accepted = id_scores <= tau
-        ood_accepted = ood_scores <= tau
-
-        ccr_list[i] = float((id_accepted & (id_correct == 1)).sum()) / n_id
-        fpr_list[i] = float(ood_accepted.sum()) / n_ood
-
-    # Sort by FPR ascending so np.trapezoid produces a positive area.
-    order = np.argsort(fpr_list)
-    fpr_sorted = fpr_list[order]
-    ccr_sorted = ccr_list[order]
-
-    _trapz = getattr(np, "trapezoid", None) or np.trapz  # type: ignore[attr-defined]
-    return float(_trapz(ccr_sorted, fpr_sorted))
+    _, _, aoscr = _oscr_curve_points(scores, ood_labels, cls_correct)
+    return aoscr
 
 
 def compute_nf_rejection_at_tpr(
@@ -192,7 +207,7 @@ def compute_aoscr_multiclass(
     ood_labels: np.ndarray,
     preds: np.ndarray,
     y: np.ndarray,
-    n_thresholds: int = 1000,
+    n_thresholds: int | None = None,
 ) -> float:
     """AOSCR for multi-class (single-label) OSR — convenience wrapper.
 
@@ -216,7 +231,7 @@ def compute_aoscr_multiclass(
         preds: Either integer class predictions ``[N]`` or a softmax /
             logit matrix ``[N, K]``.
         y: Integer ground-truth classes, shape ``[N]``.
-        n_thresholds: Number of threshold steps for the OSCR curve.
+        n_thresholds: Deprecated and ignored.
 
     Returns:
         AOSCR in ``[0, 1]``. Higher is better.

@@ -6,6 +6,19 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-01
+
+Performance release: AOSCR/OSCR rewritten as O(N log N), `bootstrap_ci` gains optional threading.
+
+### Added
+
+- `bootstrap_ci` accepts `n_jobs` (default `1`). `n_jobs > 1` runs `metric_fn` over replicates on a `ThreadPoolExecutor`; `-1` uses `os.cpu_count()`; clamped to `min(n_jobs, n_bootstrap, os.cpu_count())`. Indices are drawn in the main thread, so output is bit-exact with the serial path for any `seed`. Threading (not multiprocessing) keeps lambdas and closures working. Measured at `n_bootstrap=1000`, metric=`auroc`, 4-core: parallelism hurts at N=1k, ~1.6× at N=10k (`n_jobs=2`), ~2.9× at N=100k (`n_jobs=4`). Use only when serial takes more than a few seconds.
+
+### Changed
+
+- `compute_aoscr`, `compute_aoscr_multiclass`, and `oscr_curve` switched to an exact O(N log N) sort + cumulative-counts implementation. Faster (73× at N=1k, 14× at N=10k, 6.5× at N=100k, 5× at N=1M) and free of grid-discretization bias (agreement with the old loop within 2e-5). `oscr_curve` now returns ≤ N+1 points (one per unique score plus a `(0, 0)` anchor) instead of `n_thresholds` points, with tied scores collapsed for input-order invariance.
+- `n_thresholds` is deprecated on `compute_aoscr`, `compute_aoscr_multiclass`, and `oscr_curve`. Passing it emits `DeprecationWarning`; it will be removed in a later release.
+
 ## [0.3.1] — 2026-04-30
 
 Docs and CI maintenance release. No public-API changes.

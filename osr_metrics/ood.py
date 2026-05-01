@@ -9,7 +9,9 @@ and any setting where you can produce a per-sample novelty score.
 """
 from __future__ import annotations
 
+import os
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from sklearn.metrics import roc_curve
@@ -172,7 +174,7 @@ def oscr_curve(
     novelty_scores: np.ndarray,
     labels_ood: np.ndarray,
     cls_correct: np.ndarray,
-    n_thresholds: int = 1000,
+    n_thresholds: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, float]:
     """Open-Set Classification Rate (OSCR) curve (Dhamija et al. 2018).
 
@@ -202,50 +204,20 @@ def oscr_curve(
         cls_correct: binary indicator of correct closed-set classification
             for each sample (1 = correct, 0 = incorrect). Shape [N].
             Only meaningful for ID samples; OOD values are ignored.
-        n_thresholds: number of threshold steps for the curve.
+        n_thresholds: Deprecated and ignored. Curves now have at most
+            ``N + 1`` points (one per unique score plus a ``(0, 0)`` anchor).
 
     Returns:
         (fpr_array, ccr_array, aoscr) with arrays sorted by FPR ascending.
     """
-    novelty_scores = np.asarray(novelty_scores, dtype=float)
-    labels_ood = np.asarray(labels_ood).astype(int)
-    cls_correct = np.asarray(cls_correct).astype(int)
-
-    id_mask = labels_ood == 0
-    ood_mask = labels_ood == 1
-    n_id = int(id_mask.sum())
-    n_ood = int(ood_mask.sum())
-
-    if n_id == 0 or n_ood == 0:
-        return np.array([0.0, 1.0]), np.array([0.0, 0.0]), 0.0
-
-    lo, hi = float(novelty_scores.min()), float(novelty_scores.max())
-    if lo == hi:
-        return np.array([0.0, 1.0]), np.array([0.0, 0.0]), 0.0
-
-    thresholds = np.linspace(lo, hi, n_thresholds)
-
-    id_scores = novelty_scores[id_mask]
-    id_correct = cls_correct[id_mask]
-    ood_scores = novelty_scores[ood_mask]
-
-    fpr_list = np.empty(n_thresholds, dtype=float)
-    ccr_list = np.empty(n_thresholds, dtype=float)
-
-    for i, tau in enumerate(thresholds):
-        # Accepted = score <= tau.
-        # CCR: ID samples accepted AND classified correctly.
-        ccr_list[i] = float(((id_scores <= tau) & (id_correct == 1)).sum()) / n_id
-        # FPR: OOD samples (wrongly) accepted.
-        fpr_list[i] = float((ood_scores <= tau).sum()) / n_ood
-
-    sort_idx = np.argsort(fpr_list)
-    fpr_sorted = fpr_list[sort_idx]
-    ccr_sorted = ccr_list[sort_idx]
-
-    _trapz = getattr(np, "trapezoid", None) or np.trapz  # type: ignore[attr-defined]
-    aoscr = float(_trapz(ccr_sorted, fpr_sorted))
-    return fpr_sorted, ccr_sorted, aoscr
+    if n_thresholds is not None:
+        warnings.warn(
+            "`n_thresholds` is deprecated and ignored; remove the argument.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    from .osr import _oscr_curve_points
+    return _oscr_curve_points(novelty_scores, labels_ood, cls_correct)
 
 
 def bootstrap_ci(
@@ -256,6 +228,7 @@ def bootstrap_ci(
     ci: float = 0.95,
     seed: int = 0,
     stratify: bool = False,
+    n_jobs: int = 1,
 ) -> tuple[float, float, float]:
     """Percentile bootstrap confidence interval for any scalar metric.
 
@@ -274,6 +247,14 @@ def bootstrap_ci(
             so each bootstrap replicate has the original class proportion.
             Required when one class is rare (otherwise replicates can be
             all-positive or all-negative, producing NaN metrics).
+        n_jobs: thread count for evaluating ``metric_fn``. ``1`` (default)
+            is serial; ``-1`` is ``os.cpu_count()``. Clamped to
+            ``min(n_jobs, n_bootstrap, os.cpu_count())``. Bit-exact with
+            the serial path for any ``seed`` (indices are drawn in the
+            main thread). Threading (not multiprocessing) is used so
+            lambdas and closures work; sklearn metrics release the GIL.
+            Useful only when the serial bootstrap takes more than a few
+            seconds — at small N the dispatch overhead dominates.
 
     Returns:
         ``(lower, mean, upper)`` where ``lower``/``upper`` are the
@@ -283,25 +264,47 @@ def bootstrap_ci(
     """
     rng = np.random.RandomState(seed)
     n = len(scores)
+    scores = np.asarray(scores)
+    labels_arr = np.asarray(labels)
 
     if stratify:
-        labels_arr = np.asarray(labels)
         pos_idx = np.where(labels_arr == 1)[0]
         neg_idx = np.where(labels_arr == 0)[0]
         n_pos, n_neg = len(pos_idx), len(neg_idx)
         if n_pos == 0 or n_neg == 0:
             raise ValueError("stratify=True requires both classes to be present")
 
-    bootstrap_vals = np.empty(n_bootstrap, dtype=float)
-    for b in range(n_bootstrap):
+    # Draw all indices up front so parallel and serial paths share an RNG sequence.
+    sampled_indices: list[np.ndarray] = []
+    for _ in range(n_bootstrap):
         if stratify:
-            sampled = np.concatenate([
+            sampled_indices.append(np.concatenate([
                 rng.choice(pos_idx, size=n_pos, replace=True),
                 rng.choice(neg_idx, size=n_neg, replace=True),
-            ])
+            ]))
         else:
-            sampled = rng.choice(n, size=n, replace=True)
-        bootstrap_vals[b] = float(metric_fn(scores[sampled], labels[sampled]))
+            sampled_indices.append(rng.choice(n, size=n, replace=True))
+
+    def _eval(idx: np.ndarray) -> float:
+        return float(metric_fn(scores[idx], labels_arr[idx]))
+
+    cpu = os.cpu_count() or 1
+    requested = cpu if n_jobs == -1 else n_jobs
+    max_workers = max(1, min(requested, n_bootstrap, cpu))
+
+    if max_workers == 1:
+        bootstrap_vals = np.fromiter(
+            (_eval(idx) for idx in sampled_indices),
+            dtype=float,
+            count=n_bootstrap,
+        )
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            bootstrap_vals = np.fromiter(
+                ex.map(_eval, sampled_indices),
+                dtype=float,
+                count=n_bootstrap,
+            )
 
     valid = bootstrap_vals[~np.isnan(bootstrap_vals)]
     if valid.size == 0:
